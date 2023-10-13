@@ -4,7 +4,9 @@
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
+#include "imgui_helper.h"
 
 #include "Renderer.h"
 #include "DataItem.h"
@@ -61,69 +63,6 @@ void renderUI(Renderer& renderer)
 //////////////////////////////////////////////////////////////////////////
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
-
-  // void imageToBuffer(const nvvk::Texture& imgIn, const vk::Buffer& pixelBufferOut, Renderer& renderer)
-  // {
-  //   nvvk::CommandPool genCmdBuf(renderer.getDevice(), renderer.getQueueFamily());
-  //   vk::CommandBuffer cmdBuff = genCmdBuf.createCommandBuffer();
-
-  //   // Make the image layout eTransferSrcOptimal to copy to buffer
-  //   vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-  //   nvvkpp::cmdBarrierImageLayout(cmdBuff, imgIn.image, vk::ImageLayout::eGeneral, vk::ImageLayout::eTransferSrcOptimal, subresourceRange);
-
-  //   // Copy the image to the buffer
-  //   vk::BufferImageCopy copyRegion;
-  //   copyRegion.setImageSubresource({vk::ImageAspectFlagBits::eColor, 0, 0, 1});
-  //   copyRegion.setImageExtent(vk::Extent3D(renderer.getSize(), 1));
-  //   // cmdBuff.copyImageToBuffer(imgIn.image, vk::ImageLayout::eTransferSrcOptimal, pixelBufferOut, {copyRegion});
-  //   vkCmdCopyImageToBuffer( cmdBuff,
-  //                             static_cast<VkImage>( imgIn.image ),
-  //                             static_cast<VkImageLayout>( vk::ImageLayout::eTransferSrcOptimal ),
-  //                             static_cast<VkBuffer>( pixelBufferOut ),
-  //                             1,
-  //                             reinterpret_cast<const VkBufferImageCopy *>( &copyRegion ) );
-
-  //   // Put back the image as it was
-  //   nvvkpp::cmdBarrierImageLayout(cmdBuff, imgIn.image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eGeneral, subresourceRange);
-  //   genCmdBuf.submitAndWait(cmdBuff);
-  // }
-
-  // //--------------------------------------------------------------------------------------------------
-  // // Save the image to disk
-  // //
-  // void saveImage(const std::string& outFilename, Renderer& renderer)
-  // {
-  //   // Create a temporary buffer to hold the pixels of the image
-  //   VkBufferUsageFlags usage{VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT};
-  //   vk::DeviceSize       bufferSize = 4 * sizeof(float) * renderer.getSize().width * renderer.getSize().height;
-  //   nvvk::Buffer pixelBuffer        = renderer.m_alloc.createBuffer(bufferSize, usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-  //   imageToBuffer(renderer.m_offscreenColor, pixelBuffer.buffer, renderer);
-
-  //   // Write the buffer to disk
-  //   const void* data_float = renderer.m_alloc.map(pixelBuffer);
-  //   std::vector<uint8_t> data(renderer.getSize().width * renderer.getSize().height * 4);
-  //   float min_val = 0;
-  //   float max_val = 0;
-  //   for (int i = 0; i < data.size(); i++) {
-  //     float val = ((float*)data_float)[i];
-  //     // Emulate post shader
-  //     val = pow(val, 1 / 2.2);
-
-  //     val *= 255;
-  //     if (val > 255) val = 255;
-  //     if (val < 0) val = 0;
-  //     if (val < min_val) min_val = val;
-  //     if (val > max_val) max_val = val;
-  //     data[i] = (uint8_t)val;
-  //   }
-  //   stbi_write_png(outFilename.c_str(), renderer.getSize().width, renderer.getSize().height, 4, data.data(), 0);
-  //   renderer.m_alloc.unmap(pixelBuffer);
-
-  //   // Destroy temporary buffer
-  //   renderer.m_alloc.destroy(pixelBuffer);
-  // }
-
 
 //--------------------------------------------------------------------------------------------------
 // Application Entry
