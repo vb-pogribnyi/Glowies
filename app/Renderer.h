@@ -9,6 +9,7 @@
 #define MODEL_SHELL 64
 #define MODEL_NEUTRAL 128
 
+#include <list>
 
 #include "nvvkhl/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
@@ -36,6 +37,13 @@ struct ModelIndices {
   uint32_t particle_neutral_idx;
 };
 
+struct ParticleIdxs {
+  uint32_t particle_signed;
+  uint32_t shell;
+  uint32_t particle_neutral;
+  uint32_t filler;
+};
+
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -47,11 +55,19 @@ struct ModelIndices {
 class Renderer : public nvvkhl::AppBaseVk
 {
 public:
+  ModelIndices indices;
   bool is_rebuild_tlas;
-  void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
+  std::list<ParticleIdxs> particles_pos_free;
+  std::list<ParticleIdxs> particles_neg_free;
+  ParticleIdxs getParticle(bool is_positive);
+  void releaseParticle(bool is_positive, ParticleIdxs idxs);
+
+  void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, 
+      uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   uint32_t loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1), uint64_t flags = 0);
+  void loadModels(uint32_t nParticles);
   void updateDescriptorSet();
   void createUniformBuffer();
   void createObjDescriptionBuffer();

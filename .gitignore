@@ -2,3 +2,5 @@
 /build/*
 /bin_x64/*
 /.vs
+/.vscode
+

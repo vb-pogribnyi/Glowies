@@ -140,6 +140,7 @@ int main(int argc, char** argv)
   vkctx.setGCTQueueWithPresent(surface);
 
   renderer.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
+  renderer.loadModels(1024 * 1);
   renderer.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   renderer.createDepthBuffer();
   renderer.createRenderPass();
@@ -151,7 +152,7 @@ int main(int argc, char** argv)
   float particle_scale = 0.01;
   float particle_shell_scale = 0.1;
   float filler_scale = 0.31;
-  ModelIndices indices;
+  
   
   renderer.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths), 
                     nvmath::translation_mat4(nvmath::vec3f(0.0f, -0.02f, 0.0f)) * 
@@ -160,67 +161,23 @@ int main(int argc, char** argv)
                     nvmath::translation_mat4(nvmath::vec3f(0, 10.0, 0)) * 
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
-  indices.cube_pos_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_POSITIVE);
-  indices.cube_neg_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_NEGATIVE);
-  indices.cube_pos_prt_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_POSITIVE | MODEL_PARTIAL);
-  indices.cube_neg_prt_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_NEGATIVE | MODEL_PARTIAL);
-  indices.filler_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_FILLER);
-  indices.glass_idx = renderer.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.4, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
-                    MODEL_GLASS);
-  indices.particle_pos_idx = renderer.loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
-                    MODEL_POSITIVE | MODEL_GLOWING);
-  indices.particle_pos_shell_idx = renderer.loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
-                    MODEL_POSITIVE | MODEL_GLOWING | MODEL_SHELL);
-  indices.particle_neg_idx = renderer.loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
-                    MODEL_NEGATIVE | MODEL_GLOWING);
-  indices.particle_neg_shell_idx = renderer.loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
-                    MODEL_NEGATIVE | MODEL_GLOWING | MODEL_SHELL);
-  indices.particle_neutral_idx = renderer.loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
-                    MODEL_NEUTRAL);
-
   DIProperties props = {
     .is_has_reference = true,
     .is_construction = false,
     .position = vec3(0., 0, 0),
     .scale = -0.3
   };
-  DataItem di1(renderer, props, indices);
+  DataItem di1(renderer, props, renderer.indices);
 
   props.scale = 0.8;
   props.position = vec3(2, 0, 0);
-  DataItem di2(renderer, props, indices);
+  DataItem di2(renderer, props, renderer.indices);
 
   props.scale = 0.9;
   props.is_construction = true;
   props.is_has_reference = false;
   props.position = vec3(-1, 0, 0);
-  DataItem di3(renderer, props, indices);
+  DataItem di3(renderer, props, renderer.indices);
 
   FilterProps filterProps = {
     .prts_per_size = 100,
@@ -229,7 +186,6 @@ int main(int argc, char** argv)
   };
 
   float time_offset = 0.5;
-  Filter f(renderer, filterProps, indices, time_offset);
 
   auto start = std::chrono::system_clock::now();
 
@@ -251,6 +207,7 @@ int main(int argc, char** argv)
   renderer.updatePostDescriptorSet();
   nvmath::vec4f clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
   bool          useRaytracer = true;
+  Filter f(renderer, filterProps, renderer.indices, time_offset);
 
 
   renderer.setupGlfwCallbacks(window);

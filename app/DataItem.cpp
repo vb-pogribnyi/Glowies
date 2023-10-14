@@ -81,54 +81,64 @@ std::vector<vec3> DataItem::split(float n, float& w, float& h) {
     return result;
 }
 
-Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props) {
-    if (props.is_positive) {
-        renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                        nvmath::scale_mat4(nvmath::vec3f(scale)), indices.particle_pos_idx, 0});
-        renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                        nvmath::scale_mat4(nvmath::vec3f(shell_scale)), indices.particle_pos_shell_idx, 0});
-    } else {
-        renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                        nvmath::scale_mat4(nvmath::vec3f(scale)), indices.particle_neg_idx, 0});
-        renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                        nvmath::scale_mat4(nvmath::vec3f(shell_scale)), indices.particle_neg_shell_idx, 0});
-    }
-    renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                    nvmath::scale_mat4(vec3(0.0)), indices.filler_idx, 0});
-    renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position)) * 
-                    nvmath::scale_mat4(vec3(0.0)), indices.particle_neutral_idx, 0});
-    idx_main = renderer.m_instances.size() - 4;
-    idx_shell = renderer.m_instances.size() - 3;
-    idx_di_shell = renderer.m_instances.size() - 2;
-    idx_neutral = renderer.m_instances.size() - 1;
+Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
+    idxs = renderer.getParticle(props.is_positive);
+    moveTo(props.position, renderer, 0, vec3(0.0f));
+}
+
+Particle::~Particle()
+{
+    hide();
+    renderer.releaseParticle(props.is_positive, idxs);
+}
+
+void Particle::hide()
+{
+    renderer.m_instances[idxs.particle_signed].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+         nvmath::scale_mat4(nvmath::vec3f(0.0f));
+    renderer.m_tlas[idxs.particle_signed].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.particle_signed].transform);
+
+    renderer.m_instances[idxs.shell].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+         nvmath::scale_mat4(nvmath::vec3f(0.0f));
+    renderer.m_tlas[idxs.shell].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.shell].transform);
+    renderer.m_instances[idxs.particle_neutral].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+        nvmath::scale_mat4(nvmath::vec3f(0.0f));
+    renderer.m_tlas[idxs.particle_neutral].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.particle_neutral].transform);
+    renderer.m_instances[idxs.filler].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+        nvmath::scale_mat4(nvmath::vec3f(0.0f));
+    renderer.m_tlas[idxs.filler].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.filler].transform);
 }
 
 void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale) {
     if (filler_transition < 0) filler_transition = 0;
     if (filler_transition > 1) filler_transition = 1;
 
-    renderer.m_instances[idx_main].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
+    renderer.m_instances[idxs.particle_signed].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
          nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * scale));
-    renderer.m_tlas[idx_main].transform = nvvk::toTransformMatrixKHR(
-        renderer.m_instances[idx_main].transform);
+    renderer.m_tlas[idxs.particle_signed].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.particle_signed].transform);
 
-    renderer.m_instances[idx_shell].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
+    renderer.m_instances[idxs.shell].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
          nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * shell_scale));
-    renderer.m_tlas[idx_shell].transform = nvvk::toTransformMatrixKHR(
-        renderer.m_instances[idx_shell].transform);
+    renderer.m_tlas[idxs.shell].transform = nvvk::toTransformMatrixKHR(
+        renderer.m_instances[idxs.shell].transform);
 
     if (props.is_splashing) {
         float splash_scale = scale;
         if (filler_transition == 1) splash_scale = 0;
-        renderer.m_instances[idx_neutral].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
+        renderer.m_instances[idxs.particle_neutral].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
             nvmath::scale_mat4(filler_transition * vec3(splash_scale));
-        renderer.m_tlas[idx_neutral].transform = nvvk::toTransformMatrixKHR(
-            renderer.m_instances[idx_neutral].transform);
+        renderer.m_tlas[idxs.particle_neutral].transform = nvvk::toTransformMatrixKHR(
+            renderer.m_instances[idxs.particle_neutral].transform);
     } else {
-        renderer.m_instances[idx_di_shell].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
+        renderer.m_instances[idxs.filler].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
             nvmath::scale_mat4(filler_transition * filler_scale);
-        renderer.m_tlas[idx_di_shell].transform = nvvk::toTransformMatrixKHR(
-            renderer.m_instances[idx_di_shell].transform);
+        renderer.m_tlas[idxs.filler].transform = nvvk::toTransformMatrixKHR(
+            renderer.m_instances[idxs.filler].transform);
     }
 
     renderer.is_rebuild_tlas = true;
@@ -167,8 +177,14 @@ Filter::Filter(Renderer &renderer, FilterProps props, const ModelIndices &indice
             .is_splashing = false,
             .position = endpos
         };
-        Particle p(renderer, prtProps, indices);
-        particles.push_back(p);
+        particles.push_back(new Particle(renderer, prtProps, indices));
+    }
+}
+
+Filter::~Filter()
+{
+    for (Particle* p : particles) {
+        delete p;
     }
 }
 
@@ -179,6 +195,6 @@ void Filter::setStage(float value) {
         vec3 scale(prt_w, prt_h, prt_w);
         // Add scale offset. If the filler and DI overlap, weird things happen.
         scale *= 1.01f;
-        particles[i].moveTo(curves[i].eval(curve_value), renderer, stage, scale); 
+        particles[i]->moveTo(curves[i].eval(curve_value), renderer, stage, scale); 
     }
 }

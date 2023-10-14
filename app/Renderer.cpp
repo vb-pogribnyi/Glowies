@@ -19,6 +19,7 @@
 
 
 #include <sstream>
+#include <exception>
 
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -50,18 +51,121 @@ void Renderer::prepareFrame()
   nvvkhl::AppBaseVk::prepareFrame();
 }
 
-
 //--------------------------------------------------------------------------------------------------
 // Keep the handle on the device
 // Initialize the tool to do all our allocations: buffers, images
 //
-void Renderer::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
+void Renderer::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, 
+    uint32_t queueFamily)
 {
   AppBaseVk::setup(instance, device, physicalDevice, queueFamily);
   m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
   is_rebuild_tlas = false;
+}
+
+void Renderer::loadModels(uint32_t nParticles) {
+  indices.cube_pos_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_POSITIVE);
+  indices.cube_neg_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_NEGATIVE);
+  indices.cube_pos_prt_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_POSITIVE | MODEL_PARTIAL);
+  indices.cube_neg_prt_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_NEGATIVE | MODEL_PARTIAL);
+  indices.filler_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_FILLER);
+  indices.glass_idx = loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.4, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f, 0.0f, 0.0f)),
+                    MODEL_GLASS);
+  indices.particle_pos_idx = loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
+                    MODEL_POSITIVE | MODEL_GLOWING);
+  indices.particle_pos_shell_idx = loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
+                    MODEL_POSITIVE | MODEL_GLOWING | MODEL_SHELL);
+  indices.particle_neg_idx = loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
+                    MODEL_NEGATIVE | MODEL_GLOWING);
+  indices.particle_neg_shell_idx = loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
+                    MODEL_NEGATIVE | MODEL_GLOWING | MODEL_SHELL);
+  indices.particle_neutral_idx = loadModel(nvh::findFile("media/scenes/particle.obj", defaultSearchPaths, true),
+                    nvmath::translation_mat4(nvmath::vec3f(1, 0.5, 0)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(.0f, .0f, .0f)),
+                    MODEL_NEUTRAL);
+          
+  for (int i = 0; i < nParticles; i++) {
+    ParticleIdxs idxs;
+    // Positive particle
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f)), indices.particle_pos_idx, 0});
+    idxs.particle_signed = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f)), indices.particle_pos_shell_idx, 0});
+    idxs.shell = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(vec3(0.0f)), indices.filler_idx, 0});
+    idxs.filler = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(vec3(0.0f)), indices.particle_neutral_idx, 0});
+    idxs.particle_neutral = m_instances.size() - 1;
+
+    particles_pos_free.push_back(idxs);
+
+    // Negative particle
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f)), indices.particle_neg_idx, 0});
+    idxs.particle_signed = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(nvmath::vec3f(0.0f)), indices.particle_neg_shell_idx, 0});
+    idxs.shell = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(vec3(0.0f)), indices.filler_idx, 0});
+    idxs.filler = m_instances.size() - 1;
+    m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
+                    nvmath::scale_mat4(vec3(0.0f)), indices.particle_neutral_idx, 0});
+    idxs.particle_neutral = m_instances.size() - 1;
+
+    particles_neg_free.push_back(idxs);
+  }
+}
+
+ParticleIdxs Renderer::getParticle(bool is_positive) {
+  ParticleIdxs result;
+  std::cout << "Retrieving particle " << particles_pos_free.size() << std::endl;
+  if (is_positive) {
+    if (particles_pos_free.size() == 0) throw std::runtime_error("Positive particles over-allocation");
+    result = particles_pos_free.front();
+    particles_pos_free.pop_front();
+  } else {
+    if (particles_neg_free.size() == 0) throw std::runtime_error("Negative particles over-allocation");
+    result = particles_neg_free.front();
+    particles_neg_free.pop_front();
+  }
+  std::cout << "Positive particles left: " << particles_pos_free.size() << std::endl;
+
+  return result;
+}
+
+void Renderer::releaseParticle(bool is_positive, ParticleIdxs idxs) {
+  if (is_positive) particles_pos_free.push_back(idxs);
+  else particles_neg_free.push_back(idxs);
 }
 
 //--------------------------------------------------------------------------------------------------

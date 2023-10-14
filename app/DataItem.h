@@ -35,13 +35,17 @@ public:
     static float scale;
     static float shell_scale;
     vec3 position;
-    int idx_main;
-    int idx_shell;
-    int idx_di_shell;
-    int idx_neutral;
+    ParticleIdxs idxs;
+    // int idx_main;
+    // int idx_shell;
+    // int idx_di_shell;
+    // int idx_neutral;
     PRTProperties props;
+    Renderer &renderer;
 
     Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices);
+    ~Particle();
+    void hide();
     void moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale);
 };
 
@@ -65,11 +69,12 @@ class Filter {
 public:
     FilterProps props;
     Renderer& renderer;
-    std::vector<Particle> particles;
+    std::vector<Particle*> particles;
     std::vector<BCurve> curves;
     float prt_w, prt_h;
 
     Filter(Renderer &renderer, FilterProps props, const ModelIndices &indices, float time_offset);
+    ~Filter();
 
     // The transition stage would vary between 0 and 1
     void setStage(float value);
