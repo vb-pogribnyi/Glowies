@@ -55,8 +55,7 @@ using uint = unsigned int;
 
 START_BINDING(SceneBindings)
   eGlobals  = 0,  // Global uniform containing camera matrices
-  eObjDescs = 1,  // Access to the object descriptions
-  eTextures = 2   // Access to textures
+  eObjDescs = 1   // Access to the object descriptions
 END_BINDING();
 
 START_BINDING(RtxBindings)
@@ -69,7 +68,6 @@ END_BINDING();
 // Information of a obj model when referenced in a shader
 struct ObjDesc
 {
-  int      txtOffset;             // Texture index offset in the array of textures
   uint64_t vertexAddress;         // Address of the Vertex buffer
   uint64_t indexAddress;          // Address of the index buffer
   uint64_t materialAddress;       // Address of the material buffer

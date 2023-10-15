@@ -71,7 +71,6 @@ public:
   void updateDescriptorSet();
   void createUniformBuffer();
   void createObjDescriptionBuffer();
-  void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
@@ -125,9 +124,6 @@ public:
   nvvk::Buffer m_bGlobals;  // Device-Host of the camera matrices
   nvvk::Buffer m_bObjDesc;  // Device buffer of the OBJ descriptions
 
-  std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
-
-
   nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
   nvvk::DebugUtil            m_debug;  // Utility to name objects
 
@@ -138,8 +134,6 @@ public:
   void createPostDescriptor();
   void updatePostDescriptorSet();
   void drawPost(VkCommandBuffer cmdBuf);
-
-  void animationInstances(float time);
 
   std::vector<VkAccelerationStructureInstanceKHR> m_tlas;
   nvvk::DescriptorSetBindings m_postDescSetLayoutBind;

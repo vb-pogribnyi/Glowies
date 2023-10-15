@@ -50,8 +50,6 @@ void renderUI(Renderer& renderer)
   if(ImGui::CollapsingHeader("Light"))
   {
     ImGui::RadioButton("Point", &renderer.m_pcRaster.lightType, 0);
-    ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &renderer.m_pcRaster.lightType, 1);
 
     ImGui::SliderFloat3("Position", &renderer.m_pcRaster.lightPosition.x, -20.f, 20.f);
     ImGui::SliderFloat("Intensity", &renderer.m_pcRaster.lightIntensity, 0.f, 150.f);
@@ -169,9 +167,17 @@ int main(int argc, char** argv)
   };
   DataItem di1(renderer, props, renderer.indices);
 
-  props.scale = 0.8;
+  props.scale = 0.4;
   props.position = vec3(2, 0, 0);
   DataItem di2(renderer, props, renderer.indices);
+
+  props.scale = 0.2;
+  props.position = vec3(3, 0, 2);
+  DataItem di21(renderer, props, renderer.indices);
+
+  props.scale = -0.2;
+  props.position = vec3(1, 0, 2);
+  DataItem di22(renderer, props, renderer.indices);
 
   props.scale = 0.9;
   props.is_construction = true;
@@ -233,20 +239,15 @@ int main(int argc, char** argv)
       ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  
       if (ImGui::SliderFloat("Time", &time, 0.0f, 1.1f + time_offset / 2)) {
         f.setStage(time);
-        // di1.moveTo(vec3(time, 0, 0), renderer);
-        // p2.moveTo(time * vec3(-1.2, 0.4, -0.4) + (1 - time) * vec3(0, 0, 0), renderer, (time - 0.9) * 10);
-        // p1.moveTo(time * vec3(1, 0.5, 1.3) + (1 - time) * vec3(0, 2, 0.2), renderer, (time - 0.9) * 10);
         renderer.resetFrame();
       }
       if (ImGui::Button("Save image")) {
-        // vkMapMemory(renderer.getDevice(), renderer.m_offscreenColor.memHandle, 0, )
         renderer.saveImage("result.png");
       }
       if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
 
       renderUI(renderer);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();
     }
 
@@ -269,7 +270,6 @@ int main(int argc, char** argv)
 
     // Start rendering the scene
     // std::chrono::duration<float> diff = std::chrono::system_clock::now() - start;
-    // renderer.animationInstances(time);
     renderer.prepareFrame();
 
     // Start command buffer of this frame

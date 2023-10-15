@@ -221,7 +221,7 @@ void Renderer::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 //
 void Renderer::createDescriptorSetLayout()
 {
-  auto nbTxt = static_cast<uint32_t>(m_textures.size());
+  // auto nbTxt = static_cast<uint32_t>(m_textures.size());
 
   // Camera matrices
   m_descSetLayoutBind.addBinding(SceneBindings::eGlobals, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
@@ -229,9 +229,6 @@ void Renderer::createDescriptorSetLayout()
   // Obj descriptions
   m_descSetLayoutBind.addBinding(SceneBindings::eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
-  // Textures
-  m_descSetLayoutBind.addBinding(SceneBindings::eTextures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt,
-                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
@@ -252,14 +249,6 @@ void Renderer::updateDescriptorSet()
 
   VkDescriptorBufferInfo dbiSceneDesc{m_bObjDesc.buffer, 0, VK_WHOLE_SIZE};
   writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, SceneBindings::eObjDescs, &dbiSceneDesc));
-
-  // All texture samplers
-  std::vector<VkDescriptorImageInfo> diit;
-  for(auto& texture : m_textures)
-  {
-    diit.emplace_back(texture.descriptor);
-  }
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, SceneBindings::eTextures, diit.data()));
 
   // Writing the information
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
@@ -345,9 +334,7 @@ uint32_t Renderer::loadModel(const std::string& filename, nvmath::mat4f transfor
   model.indexBuffer         = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
   model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
   model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
-  // Creates all textures found and find the offset for this model
-  auto txtOffset = static_cast<uint32_t>(m_textures.size());
-  createTextureImages(cmdBuf, loader.m_textures);
+
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
 
@@ -365,7 +352,6 @@ uint32_t Renderer::loadModel(const std::string& filename, nvmath::mat4f transfor
 
   // Creating information for device access
   ObjDesc desc;
-  desc.txtOffset            = txtOffset;
   desc.vertexAddress        = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
   desc.indexAddress         = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
   desc.materialAddress      = nvvk::getBufferDeviceAddress(m_device, model.matColorBuffer.buffer);
@@ -409,79 +395,6 @@ void Renderer::createObjDescriptionBuffer()
 }
 
 //--------------------------------------------------------------------------------------------------
-// Creating all textures and samplers
-//
-void Renderer::createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures)
-{
-  VkSamplerCreateInfo samplerCreateInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-  samplerCreateInfo.minFilter  = VK_FILTER_LINEAR;
-  samplerCreateInfo.magFilter  = VK_FILTER_LINEAR;
-  samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-  samplerCreateInfo.maxLod     = FLT_MAX;
-
-  VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-
-  // If no textures are present, create a dummy one to accommodate the pipeline layout
-  if(textures.empty() && m_textures.empty())
-  {
-    nvvk::Texture texture;
-
-    std::array<uint8_t, 4> color{255u, 255u, 255u, 255u};
-    VkDeviceSize           bufferSize      = sizeof(color);
-    auto                   imgSize         = VkExtent2D{1, 1};
-    auto                   imageCreateInfo = nvvk::makeImage2DCreateInfo(imgSize, format);
-
-    // Creating the dummy texture
-    nvvk::Image           image  = m_alloc.createImage(cmdBuf, bufferSize, color.data(), imageCreateInfo);
-    VkImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
-    texture                      = m_alloc.createTexture(image, ivInfo, samplerCreateInfo);
-
-    // The image format must be in VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    nvvk::cmdBarrierImageLayout(cmdBuf, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    m_textures.push_back(texture);
-  }
-  else
-  {
-    // Uploading all images
-    for(const auto& texture : textures)
-    {
-      std::stringstream o;
-      int               texWidth, texHeight, texChannels;
-      o << "media/textures/" << texture;
-      std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths, true);
-
-      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-      std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
-
-      stbi_uc* pixels = stbi_pixels;
-      // Handle failure
-      if(!stbi_pixels)
-      {
-        texWidth = texHeight = 1;
-        texChannels          = 4;
-        pixels               = reinterpret_cast<stbi_uc*>(color.data());
-      }
-
-      VkDeviceSize bufferSize      = static_cast<uint64_t>(texWidth) * texHeight * sizeof(uint8_t) * 4;
-      auto         imgSize         = VkExtent2D{(uint32_t)texWidth, (uint32_t)texHeight};
-      auto         imageCreateInfo = nvvk::makeImage2DCreateInfo(imgSize, format, VK_IMAGE_USAGE_SAMPLED_BIT, true);
-
-      {
-        nvvk::Image image = m_alloc.createImage(cmdBuf, bufferSize, pixels, imageCreateInfo);
-        nvvk::cmdGenerateMipmaps(cmdBuf, image.image, format, imgSize, imageCreateInfo.mipLevels);
-        VkImageViewCreateInfo ivInfo  = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
-        nvvk::Texture         texture = m_alloc.createTexture(image, ivInfo, samplerCreateInfo);
-
-        m_textures.push_back(texture);
-      }
-
-      stbi_image_free(stbi_pixels);
-    }
-  }
-}
-
-//--------------------------------------------------------------------------------------------------
 // Destroying all allocations
 //
 void Renderer::destroyResources()
@@ -500,11 +413,6 @@ void Renderer::destroyResources()
     m_alloc.destroy(m.indexBuffer);
     m_alloc.destroy(m.matColorBuffer);
     m_alloc.destroy(m.matIndexBuffer);
-  }
-
-  for(auto& t : m_textures)
-  {
-    m_alloc.destroy(t);
   }
 
   //#Post
@@ -591,7 +499,6 @@ void Renderer::createOffscreenRender()
     auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, m_offscreenColorFormat,
                                                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
                                                            | VK_IMAGE_USAGE_STORAGE_BIT);
-
 
     nvvk::Image           image  = m_alloc.createImage(colorCreateInfo);
     VkImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
@@ -1032,28 +939,6 @@ void Renderer::updateFrame()
 void Renderer::resetFrame()
 {
   m_pcRay.frame = -1;
-}
-
-void Renderer::animationInstances(float time)
-{
-  const int32_t nbWuson     = static_cast<int32_t>(m_instances.size() - 2);
-  const float   deltaAngle  = 6.28318530718f / static_cast<float>(nbWuson);
-  const float   wusonLength = 3.f;
-  const float   radius      = wusonLength / (2.f * sin(deltaAngle / 2.0f));
-  const float   offset      = time * 0.5f;
-
-  for(int i = 0; i < nbWuson; i++)
-  {
-    int          wusonIdx = i + 2;
-    auto& transform = m_instances[wusonIdx].transform;
-    transform        = nvmath::rotation_mat4_y(i * deltaAngle + offset)
-                     * nvmath::translation_mat4(radius, 0.f, 0.f);
-
-    VkAccelerationStructureInstanceKHR& tinst = m_tlas[wusonIdx];
-    tinst.transform                           = nvvk::toTransformMatrixKHR(transform);
-  }
-  m_rtBuilder.buildTlas(m_tlas, m_rtFlags, true);
-  resetFrame();
 }
 
 void Renderer::imageToBuffer(const nvvk::Texture& imgIn, const VkBuffer& pixelBufferOut)

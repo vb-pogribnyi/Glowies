@@ -223,7 +223,7 @@ void GetMaterialsAndTextures(inout State state, in Ray r)
   state.mat.anisotropy = 0.0;
 
   // KHR_materials_volume
-  state.mat.attenuationColor    = vec3(0.1);
+  state.mat.attenuationColor    = vec3(0.4);
   state.mat.attenuationDistance = 1.0;
   state.mat.thinwalled          = false;
 

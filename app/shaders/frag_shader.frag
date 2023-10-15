@@ -49,7 +49,6 @@ layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // 
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
 
 layout(binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
-layout(binding = eTextures) uniform sampler2D[] textureSamplers;
 // clang-format on
 
 
@@ -83,13 +82,6 @@ void main()
 
   // Diffuse
   vec3 diffuse = computeDiffuse(mat, L, N);
-  if(mat.textureId >= 0)
-  {
-    int  txtOffset  = objDesc.i[pcRaster.objIndex].txtOffset;
-    uint txtId      = txtOffset + mat.textureId;
-    vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], i_texCoord).xyz;
-    diffuse *= diffuseTxt;
-  }
 
   // Specular
   vec3 specular = computeSpecular(mat, i_viewDir, L, N);
