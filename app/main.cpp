@@ -195,6 +195,12 @@ int main(int argc, char** argv)
 
   auto start = std::chrono::system_clock::now();
 
+  ShaderNames shadersFull = {
+    .rgen = "spv/raytrace.rgen.spv",
+    .rmiss = "spv/raytrace.rmiss.spv",
+    .rchit = "spv/raytrace.rchit.spv",
+    .rahit = "spv/raytrace.rahit.spv"
+  };
 
   renderer.createOffscreenRender();
   renderer.createDescriptorSetLayout();
@@ -206,7 +212,9 @@ int main(int argc, char** argv)
   renderer.createBottomLevelAS();
   renderer.createTopLevelAS();
   renderer.createRtDescriptorSet();
-  renderer.createRtPipeline();
+  renderer.createRtPipelineLayout();
+  renderer.createRtPipeline(shadersFull, renderer.m_rtShaderGroups, renderer.m_sbtWrapper, renderer.m_rtPipeline);
+  renderer.createRtPipeline(shadersFull, renderer.m_rtShaderGroups, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
 
   renderer.createPostDescriptor();
   renderer.createPostPipeline();
@@ -299,11 +307,13 @@ int main(int argc, char** argv)
 
       // Rendering Scene
       if (useRaytracer) {
-        renderer.raytrace(cmdBuf, clearColor);
+        renderer.raytrace(cmdBuf, clearColor, renderer.m_sbtWrapper, renderer.m_rtPipeline);
       } else {
-        vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        renderer.rasterize(cmdBuf);
-        vkCmdEndRenderPass(cmdBuf);
+        // vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        // renderer.rasterize(cmdBuf);
+        // vkCmdEndRenderPass(cmdBuf);
+
+        renderer.raytrace(cmdBuf, clearColor, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
       }
     }
 

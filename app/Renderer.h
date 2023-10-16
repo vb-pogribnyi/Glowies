@@ -44,6 +44,13 @@ struct ParticleIdxs {
   uint32_t filler;
 };
 
+struct ShaderNames {
+  std::string rgen;
+  std::string rmiss;
+  std::string rchit;
+  std::string rahit;
+};
+
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -156,8 +163,10 @@ public:
   void createTopLevelAS();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
-  void createRtPipeline();
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void createRtPipelineLayout();
+  void createRtPipeline(ShaderNames shaders, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
+          nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
+  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
 
   void resetFrame();
   void updateFrame();
@@ -169,9 +178,12 @@ public:
   VkDescriptorSetLayout                           m_rtDescSetLayout;
   VkDescriptorSet                                 m_rtDescSet;
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups_simpli;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
+  VkPipeline                                        m_rtPipeline_simpli;
   nvvk::SBTWrapper                                  m_sbtWrapper;
+  nvvk::SBTWrapper                                  m_sbtWrapper_simpli;
   VkBuildAccelerationStructureFlagsKHR m_rtFlags;
 
   nvvk::Buffer                    m_rtSBTBuffer;
