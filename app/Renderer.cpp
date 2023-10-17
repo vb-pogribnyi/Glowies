@@ -900,7 +900,7 @@ void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clea
   m_pcRay.debugging_mode = 0;         // See DebugMode
   m_pcRay.size = {m_size.width, m_size.height};                   // rendering size
   m_pcRay.minHeatmap = 0;             // Debug mode - heat map
-  m_pcRay.maxHeatmap = 1;
+  m_pcRay.maxHeatmap = 3000000;
 
   m_pcRay.debugging_mode = eRayDir;
 

@@ -196,6 +196,13 @@ int main(int argc, char** argv)
   auto start = std::chrono::system_clock::now();
 
   ShaderNames shadersFull = {
+    .rgen = "spv/pathtrace.rgen.spv",
+    .rmiss = "spv/pathtrace.rmiss.spv",
+    .rchit = "spv/pathtrace.rchit.spv",
+    .rahit = "spv/pathtrace.rahit.spv"
+  };
+
+  ShaderNames shadersSimpli = {
     .rgen = "spv/raytrace.rgen.spv",
     .rmiss = "spv/raytrace.rmiss.spv",
     .rchit = "spv/raytrace.rchit.spv",
@@ -214,7 +221,7 @@ int main(int argc, char** argv)
   renderer.createRtDescriptorSet();
   renderer.createRtPipelineLayout();
   renderer.createRtPipeline(shadersFull, renderer.m_rtShaderGroups, renderer.m_sbtWrapper, renderer.m_rtPipeline);
-  renderer.createRtPipeline(shadersFull, renderer.m_rtShaderGroups, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
+  renderer.createRtPipeline(shadersSimpli, renderer.m_rtShaderGroups_simpli, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
 
   renderer.createPostDescriptor();
   renderer.createPostPipeline();

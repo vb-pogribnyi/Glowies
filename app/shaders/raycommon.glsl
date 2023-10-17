@@ -15,11 +15,42 @@ struct hitPayload
   float test_distance;
 };
 
+struct hitPayloadSimpli {
+  vec3 hitValue;
+  bool isShadowed;
+};
+
 struct shadowPayload
 {
   bool isHit;
   uint seed;
 };
+// utility for temperature
+float fade(float low, float high, float value)
+{
+  float mid   = (low + high) * 0.5;
+  float range = (high - low) * 0.5;
+  float x     = 1.0 - clamp(abs(mid - value) / range, 0.0, 1.0);
+  return smoothstep(0.0, 1.0, x);
+}
+
+
+// Return a cold-hot color based on intensity [0-1]
+vec3 temperature(float intensity)
+{
+  const vec3 blue   = vec3(0.0, 0.0, 1.0);
+  const vec3 cyan   = vec3(0.0, 1.0, 1.0);
+  const vec3 green  = vec3(0.0, 1.0, 0.0);
+  const vec3 yellow = vec3(1.0, 1.0, 0.0);
+  const vec3 red    = vec3(1.0, 0.0, 0.0);
+
+  vec3 color = (fade(-0.25, 0.25, intensity) * blue    //
+                + fade(0.0, 0.5, intensity) * cyan     //
+                + fade(0.25, 0.75, intensity) * green  //
+                + fade(0.5, 1.0, intensity) * yellow   //
+                + smoothstep(0.75, 1.0, intensity) * red);
+  return color;
+}
 
 // This material is the shading material after applying textures and any
 // other operation. This structure is filled in gltfmaterial.glsl
