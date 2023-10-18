@@ -18,6 +18,7 @@ struct hitPayload
 struct hitPayloadSimpli {
   vec3 hitValue;
   bool isShadowed;
+  int depth;
 };
 
 struct shadowPayload

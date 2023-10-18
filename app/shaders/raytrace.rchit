@@ -61,6 +61,12 @@ vec3 computeSpecular(WaveFrontMaterial mat, vec3 viewDir, vec3 lightDir, vec3 no
 
 void main()
 {
+  if (prd.depth++ >= 10) {
+    // prd.hitValue = vec3(0, 1, 0);
+    return;
+  }
+
+
   // Object data
   ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
@@ -95,6 +101,38 @@ void main()
   vec3  specular    = vec3(0);
   float attenuation = 1;
 
+
+  if (mat.transmittance.x > 0) {  // Transparent material
+    float tMin   = 0.001;
+    float tMax   = INFINITY;
+    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    float eta = 1 / 1.4;
+    vec3 nrm = worldNrm;
+    if (dot(worldNrm, gl_WorldRayDirectionEXT) > 0) {
+      eta = 1 / eta;
+      nrm = -1 * nrm;
+    }
+    vec3  rayDir = refract(gl_WorldRayDirectionEXT, nrm, eta);
+    if (length(rayDir) == 0) rayDir = reflect(gl_WorldRayDirectionEXT, nrm);
+    uint  flags  = gl_RayFlagsNoneEXT;
+
+    traceRayEXT(topLevelAS,  // acceleration structure
+                flags,       // rayFlags
+                0xFF,        // cullMask
+                0,           // sbtRecordOffset
+                0,           // sbtRecordStride
+                0,           // missIndex
+                origin,      // ray origin
+                tMin,        // ray min range
+                rayDir,      // ray direction
+                tMax,        // ray max range
+                0            // payload (location = 0)
+    );
+
+    return;
+  }
+
+
   // Tracing shadow ray only if the light is visible from the surface
   if(dot(worldNrm, L) > 0)
   {
@@ -128,7 +166,7 @@ void main()
     }
   }
 
-  prd.hitValue = vec3(attenuation * (diffuse + specular));
+  prd.hitValue += vec3(attenuation * (diffuse + specular));
 
 /*
   prd.hitT                = gl_HitTEXT;

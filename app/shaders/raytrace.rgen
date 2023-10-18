@@ -47,6 +47,8 @@ void main()
   vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
 
   uint rayFlags = gl_RayFlagsNoneEXT;
+  prd.hitValue = vec3(0);
+  prd.depth = 0;
 
   traceRayEXT(topLevelAS,   // acceleration structure
               rayFlags,     // rayFlags
