@@ -102,7 +102,11 @@ void main()
   float attenuation = 1;
 
 
-  if (mat.transmittance.x > 0) {  // Transparent material
+  //////////////////////////////////////
+  // Transparent material
+  //////////////////////////////////////
+
+  if (mat.transmittance.x > 0) {  
     float tMin   = 0.001;
     float tMax   = INFINITY;
     vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
@@ -132,6 +136,77 @@ void main()
     return;
   }
 
+  //////////////////////////////////////
+  // Shell cross
+  //////////////////////////////////////
+  if(mat.illum == 4) {
+    prd.n_core_crosses = 0;
+    prd.isSkipAll = true;
+    traceRayEXT(topLevelAS,               // acceleration structure
+                gl_RayFlagsNoneEXT,       // rayFlags
+                0xFF,                     // cullMask
+                0,                        // sbtRecordOffset
+                0,                        // sbtRecordStride
+                0,                        // missIndex
+                gl_WorldRayOriginEXT,     // ray origin
+                0,                        // ray min range
+                gl_WorldRayDirectionEXT,  // ray direction
+                gl_HitTEXT,               // ray max range
+                0                         // payload (location = 0)
+    );
+    prd.isSkipAll = false;
+    if (prd.n_core_crosses <= 0) {
+      traceRayEXT(topLevelAS,               // acceleration structure
+                  gl_RayFlagsNoneEXT,       // rayFlags
+                  0xFF,                     // cullMask
+                  0,                        // sbtRecordOffset
+                  0,                        // sbtRecordStride
+                  0,                        // missIndex
+                  gl_WorldRayOriginEXT,     // ray origin
+                  gl_HitTEXT,               // ray min range
+                  gl_WorldRayDirectionEXT,  // ray direction
+                  INFINITY,                 // ray max range
+                  0                         // payload (location = 0)
+      );
+      return;
+    }
+  }
+
+  //////////////////////////////////////
+  // Core cross
+  //////////////////////////////////////
+  if(mat.illum == 8) {
+    prd.n_shell_crosses = 0;
+    prd.isSkipAll = true;
+    traceRayEXT(topLevelAS,               // acceleration structure
+                gl_RayFlagsNoneEXT,       // rayFlags
+                0xFF,                     // cullMask
+                0,                        // sbtRecordOffset
+                0,                        // sbtRecordStride
+                0,                        // missIndex
+                gl_WorldRayOriginEXT,     // ray origin
+                0,                        // ray min range
+                gl_WorldRayDirectionEXT,  // ray direction
+                gl_HitTEXT,               // ray max range
+                0                         // payload (location = 0)
+    );
+    prd.isSkipAll = false;
+    if (prd.n_shell_crosses <= 0) {
+      traceRayEXT(topLevelAS,               // acceleration structure
+                  gl_RayFlagsNoneEXT,       // rayFlags
+                  0xFF,                     // cullMask
+                  0,                        // sbtRecordOffset
+                  0,                        // sbtRecordStride
+                  0,                        // missIndex
+                  gl_WorldRayOriginEXT,     // ray origin
+                  gl_HitTEXT,               // ray min range
+                  gl_WorldRayDirectionEXT,  // ray direction
+                  INFINITY,                 // ray max range
+                  0                         // payload (location = 0)
+      );
+      return;
+    }
+  }
 
   // Tracing shadow ray only if the light is visible from the surface
   if(dot(worldNrm, L) > 0)

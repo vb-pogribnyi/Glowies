@@ -49,6 +49,7 @@ void main()
   uint rayFlags = gl_RayFlagsNoneEXT;
   prd.hitValue = vec3(0);
   prd.depth = 0;
+  prd.isSkipAll = false;
 
   traceRayEXT(topLevelAS,   // acceleration structure
               rayFlags,     // rayFlags
