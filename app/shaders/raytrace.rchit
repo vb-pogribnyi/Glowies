@@ -241,7 +241,7 @@ void main()
     }
   }
 
-  prd.hitValue += vec3(attenuation * (diffuse + specular));
+  prd.hitValue = vec3(attenuation * (diffuse + specular));
 
 /*
   prd.hitT                = gl_HitTEXT;
