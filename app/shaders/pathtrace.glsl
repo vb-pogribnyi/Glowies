@@ -143,10 +143,28 @@ ShadeState GetShadeState(in hitPayload hstate)
   const vec3 worldNrm = normalize(vec3(nrm * hstate.objectToWorld));  // Transforming the normal to world space
 
   vec3       tangent  = v1.pos - v0.pos;
+  float tglen = abs(dot(v1.pos - v0.pos, vec3(1, 0, 0)));
+  if (tglen == 0) {
+    tglen = abs(dot(v2.pos - v0.pos, vec3(1, 0, 0)));
+  }
+  tangent = tglen * vec3(1, 0, 0);
+  if (tglen == 0) {
+    tglen = abs(dot(v1.pos - v0.pos, vec3(0, 1, 0)));
+    if (tglen == 0) {
+      tglen = abs(dot(v2.pos - v0.pos, vec3(0, 1, 0)));
+    }
+    tangent = vec3(0, 1, 0) * tglen;
+  }
+
+  // if (tglen <= 0) tangent = vec3(0, 0, 1);
+
   tangent.xyz         = normalize(tangent.xyz);
   vec3 world_tangent  = normalize(vec3(mat4(hstate.objectToWorld) * vec4(tangent.xyz, 0)));
   world_tangent       = normalize(world_tangent - dot(world_tangent, worldNrm) * worldNrm);
   vec3 world_binormal = normalize(cross(worldNrm, world_tangent));
+
+  // sstate.position = tangent;
+  // return sstate;
 
   WaveFrontMaterial material = materials.m[matIndices.i[hstate.primitiveID]];
   sstate.material = material;
@@ -301,6 +319,8 @@ vec3 PathTrace(Ray r)
 
       // Get Position, Normal, Tangents, Texture Coordinates, Color
       sstate = GetShadeState(prd);
+
+      // return sstate.position;
 
       if (sstate.material.illum == 8) {
         if (dot(sstate.normal, r.direction) < 0) nhits_inner++;
