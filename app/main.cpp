@@ -211,7 +211,7 @@ int main(int argc, char** argv)
 
   renderer.createOffscreenRender();
   renderer.createDescriptorSetLayout();
-  renderer.createGraphicsPipeline();
+  // renderer.createGraphicsPipeline();
   renderer.createUniformBuffer();
   renderer.createObjDescriptionBuffer();
   renderer.updateDescriptorSet();
@@ -305,12 +305,12 @@ int main(int argc, char** argv)
 
     // Offscreen render pass
     {
-      VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-      offscreenRenderPassBeginInfo.clearValueCount = 2;
-      offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
-      offscreenRenderPassBeginInfo.renderPass      = renderer.m_offscreenRenderPass;
-      offscreenRenderPassBeginInfo.framebuffer     = renderer.m_offscreenFramebuffer;
-      offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, renderer.getSize()};
+      // VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+      // offscreenRenderPassBeginInfo.clearValueCount = 2;
+      // offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
+      // offscreenRenderPassBeginInfo.renderPass      = renderer.m_offscreenRenderPass;
+      // offscreenRenderPassBeginInfo.framebuffer     = renderer.m_offscreenFramebuffer;
+      // offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, renderer.getSize()};
 
       // Rendering Scene
       if (useRaytracer) {

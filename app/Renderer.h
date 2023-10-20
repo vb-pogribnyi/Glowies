@@ -72,7 +72,7 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, 
       uint32_t queueFamily) override;
   void createDescriptorSetLayout();
-  void createGraphicsPipeline();
+  // void createGraphicsPipeline();
   uint32_t loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1), uint64_t flags = 0);
   void loadModels(uint32_t nParticles);
   void updateDescriptorSet();
@@ -81,7 +81,7 @@ public:
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
-  void rasterize(const VkCommandBuffer& cmdBuff);
+  // void rasterize(const VkCommandBuffer& cmdBuff);
   void prepareFrame();
   void saveImage(const std::string& outFilename);
   void imageToBuffer(const nvvk::Texture& imgIn, const VkBuffer& pixelBufferOut);
@@ -119,10 +119,6 @@ public:
   std::vector<ObjDesc>     m_objDesc;    // Model description for device access
   std::vector<ObjInstance> m_instances;  // Scene model instances
 
-
-  // Graphic pipeline
-  VkPipelineLayout            m_pipelineLayout;
-  VkPipeline                  m_graphicsPipeline;
   nvvk::DescriptorSetBindings m_descSetLayoutBind;
   VkDescriptorPool            m_descPool;
   VkDescriptorSetLayout       m_descSetLayout;

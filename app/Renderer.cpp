@@ -225,10 +225,10 @@ void Renderer::createDescriptorSetLayout()
 
   // Camera matrices
   m_descSetLayoutBind.addBinding(SceneBindings::eGlobals, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+                                 VK_SHADER_STAGE_RAYGEN_BIT_KHR);
   // Obj descriptions
   m_descSetLayoutBind.addBinding(SceneBindings::eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+                                  VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
 
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
@@ -252,41 +252,6 @@ void Renderer::updateDescriptorSet()
 
   // Writing the information
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-}
-
-
-//--------------------------------------------------------------------------------------------------
-// Creating the pipeline layout
-//
-void Renderer::createGraphicsPipeline()
-{
-  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantRaster)};
-
-  // Creating the Pipeline Layout
-  VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-  createInfo.setLayoutCount         = 1;
-  createInfo.pSetLayouts            = &m_descSetLayout;
-  createInfo.pushConstantRangeCount = 1;
-  createInfo.pPushConstantRanges    = &pushConstantRanges;
-  vkCreatePipelineLayout(m_device, &createInfo, nullptr, &m_pipelineLayout);
-
-
-  // Creating the Pipeline
-  std::vector<std::string>                paths = defaultSearchPaths;
-  nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
-  gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), VK_SHADER_STAGE_VERTEX_BIT);
-  gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
-  gpb.addBindingDescription({0, sizeof(VertexObj)});
-  gpb.addAttributeDescriptions({
-      {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(offsetof(VertexObj, pos))},
-      {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(offsetof(VertexObj, nrm))},
-      {2, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<uint32_t>(offsetof(VertexObj, color))},
-      {3, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<uint32_t>(offsetof(VertexObj, texCoord))},
-  });
-
-  m_graphicsPipeline = gpb.createPipeline();
-  m_debug.setObjectName(m_graphicsPipeline, "Graphics");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -399,11 +364,6 @@ void Renderer::createObjDescriptionBuffer()
 //
 void Renderer::destroyResources()
 {
-  vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-  vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-  vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
-  vkDestroyDescriptorSetLayout(m_device, m_descSetLayout, nullptr);
-
   m_alloc.destroy(m_bGlobals);
   m_alloc.destroy(m_bObjDesc);
 
@@ -440,38 +400,6 @@ void Renderer::destroyResources()
   m_alloc.destroy(m_rtSBTBuffer);
 
   m_alloc.deinit();
-}
-
-//--------------------------------------------------------------------------------------------------
-// Drawing the scene in raster mode
-//
-void Renderer::rasterize(const VkCommandBuffer& cmdBuf)
-{
-  VkDeviceSize offset{0};
-
-  m_debug.beginLabel(cmdBuf, "Rasterize");
-
-  // Dynamic Viewport
-  setViewport(cmdBuf);
-
-  // Drawing all triangles
-  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descSet, 0, nullptr);
-
-
-  for(const Renderer::ObjInstance& inst : m_instances)
-  {
-    auto& model            = m_objModel[inst.objIndex];
-    m_pcRaster.objIndex    = inst.objIndex;  // Telling which object is drawn
-    m_pcRaster.modelMatrix = inst.transform;
-
-    vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(PushConstantRaster), &m_pcRaster);
-    vkCmdBindVertexBuffers(cmdBuf, 0, 1, &model.vertexBuffer.buffer, &offset);
-    vkCmdBindIndexBuffer(cmdBuf, model.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmdBuf, model.nbIndices, 1, 0, 0, 0);
-  }
-  m_debug.endLabel(cmdBuf);
 }
 
 //--------------------------------------------------------------------------------------------------
