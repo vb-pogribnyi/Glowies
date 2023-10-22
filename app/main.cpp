@@ -227,7 +227,7 @@ int main(int argc, char** argv)
   renderer.createPostPipeline();
   renderer.updatePostDescriptorSet();
   nvmath::vec4f clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  bool          useRaytracer = false;
   Filter f(renderer, filterProps, renderer.indices, time_offset);
 
 
