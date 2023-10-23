@@ -65,6 +65,98 @@ vec3 computeSpecular(WaveFrontMaterial mat, vec3 viewDir, vec3 lightDir, vec3 no
   return vec3(mat.specular * specular);
 }
 
+bool isInside(rayQueryEXT rayQuery, int dstIllum, vec3 testPoint) {
+  rayQueryEXT rayQueryCnt;
+  rayQueryInitializeEXT(rayQueryCnt,     //
+                        topLevelAS,   // acceleration structure
+                        gl_RayFlagsNoneEXT,     // rayFlags
+                        0xFF,         // cullMask
+                        rayQueryGetWorldRayOriginEXT(rayQuery),     // ray origin
+                        0.0,          // ray min range
+                        rayQueryGetWorldRayDirectionEXT(rayQuery),  // ray direction
+                        rayQueryGetIntersectionTEXT(rayQuery, false));    // ray max range
+  
+  while(rayQueryProceedEXT(rayQueryCnt))
+  {
+    if(rayQueryGetIntersectionTypeEXT(rayQueryCnt, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
+    {
+      ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQueryCnt, false)];
+      MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+      Materials  materials   = Materials(objResource.materialAddress);
+      int               matIdx = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQueryCnt, false)];
+      WaveFrontMaterial mat    = materials.m[matIdx];
+
+      
+      if(mat.illum == dstIllum) { 
+        vec3 obj_position = vec3(rayQueryGetIntersectionWorldToObjectEXT(rayQueryCnt, false) * vec4(testPoint, 1));
+
+        if (abs(obj_position.x) < 0.5 && abs(obj_position.y) < 0.5 && abs(obj_position.z) < 0.5) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+void trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery) {
+  rayQueryInitializeEXT(rayQuery,     //
+                        topLevelAS,   // acceleration structure
+                        gl_RayFlagsNoneEXT,     // rayFlags
+                        0xFF,         // cullMask
+                        origin,     // ray origin
+                        0.0001,          // ray min range
+                        direction,  // ray direction
+                        INFINITY);    // ray max range
+  
+  // Start traversal: return false if traversal is complete
+  while(rayQueryProceedEXT(rayQuery))
+  {
+    if(rayQueryGetIntersectionTypeEXT(rayQuery, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
+    {
+      // Object data
+      ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, false)];
+      MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+      Materials  materials   = Materials(objResource.materialAddress);
+      Indices    indices     = Indices(objResource.indexAddress);
+      Vertices   vertices    = Vertices(objResource.vertexAddress);
+      int               matIdx  = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
+      ivec3             ind     = indices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
+      WaveFrontMaterial mat    = materials.m[matIdx];
+
+      // Vertex of the triangle
+      Vertex v0 = vertices.v[ind.x];
+      Vertex v1 = vertices.v[ind.y];
+      Vertex v2 = vertices.v[ind.z];
+      vec2       bary         = rayQueryGetIntersectionBarycentricsEXT(rayQuery, false);
+      const vec3 barycentrics = vec3(1.0 - bary.x - bary.y, bary.x, bary.y);
+
+      // Computing the coordinates of the hit position
+      const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+      const vec3 worldPos = vec3(rayQueryGetIntersectionObjectToWorldEXT(rayQuery, false) * vec4(pos, 1.0));
+
+      //////////////////////////////////////
+      // Shell cross
+      //////////////////////////////////////
+      if(mat.illum == 4) {
+        if (isInside(rayQuery, 8, worldPos)) {
+          rayQueryConfirmIntersectionEXT(rayQuery);
+        }
+      }
+
+      //////////////////////////////////////
+      // Core cross
+      //////////////////////////////////////
+      else if(mat.illum == 8) {
+        if (isInside(rayQuery, 4, worldPos)) {
+          rayQueryConfirmIntersectionEXT(rayQuery);
+        }
+      }
+
+      else rayQueryConfirmIntersectionEXT(rayQuery);  // The hit was opaque
+    }
+  }
+}
 vec3 getColor(WaveFrontMaterial mat, vec3 L, rayQueryEXT rayQuery, vec3 worldNrm) {
   float attenuation = 1;
   vec3  specular    = vec3(0);
@@ -110,23 +202,12 @@ vec3 getColor(WaveFrontMaterial mat, vec3 L, rayQueryEXT rayQuery, vec3 worldNrm
     float tMin   = 0.001;
     float tMax   = INFINITY;
     vec3  origin = rayQueryGetWorldRayOriginEXT(rayQuery) + rayQueryGetWorldRayDirectionEXT(rayQuery) * rayQueryGetIntersectionTEXT(rayQuery, true);
-    vec3  rayDir = L;
-    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-    prd.isShadowed   = true;
-    traceRayEXT(topLevelAS,  // acceleration structure
-                flags,       // rayFlags
-                0xFF,        // cullMask
-                0,           // sbtRecordOffset
-                0,           // sbtRecordStride
-                0,           // missIndex
-                origin,      // ray origin
-                tMin,        // ray min range
-                rayDir,      // ray direction
-                tMax,        // ray max range
-                0            // payload (location = 0)
-    );
+    
+    rayQueryEXT rayQuerySHDW;
+    trace(origin, L, rayQuerySHDW);
 
-    if(prd.isShadowed)
+    bool hit = (rayQueryGetIntersectionTypeEXT(rayQuerySHDW, true) != gl_RayQueryCommittedIntersectionNoneEXT);
+    if(hit)
     {
       attenuation = 0.3;
     }
@@ -163,120 +244,7 @@ void main()
 
 
   rayQueryEXT rayQuery;
-  rayQueryInitializeEXT(rayQuery,     //
-                        topLevelAS,   // acceleration structure
-                        rayFlags,     // rayFlags
-                        0xFF,         // cullMask
-                        origin.xyz,     // ray origin
-                        0.0,          // ray min range
-                        direction.xyz,  // ray direction
-                        INFINITY);    // ray max range
-  
-  // Start traversal: return false if traversal is complete
-  while(rayQueryProceedEXT(rayQuery))
-  {
-    if(rayQueryGetIntersectionTypeEXT(rayQuery, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
-    {
-      // Object data
-      ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, false)];
-      MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
-      Materials  materials   = Materials(objResource.materialAddress);
-      Indices    indices     = Indices(objResource.indexAddress);
-      Vertices   vertices    = Vertices(objResource.vertexAddress);
-      int               matIdx  = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
-      ivec3             ind     = indices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
-      WaveFrontMaterial mat    = materials.m[matIdx];
-
-      // Vertex of the triangle
-      Vertex v0 = vertices.v[ind.x];
-      Vertex v1 = vertices.v[ind.y];
-      Vertex v2 = vertices.v[ind.z];
-      vec2       bary         = rayQueryGetIntersectionBarycentricsEXT(rayQuery, false);
-      const vec3 barycentrics = vec3(1.0 - bary.x - bary.y, bary.x, bary.y);
-
-      // Computing the coordinates of the hit position
-      const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-      const vec3 worldPos = vec3(rayQueryGetIntersectionObjectToWorldEXT(rayQuery, false) * vec4(pos, 1.0));
-
-      //////////////////////////////////////
-      // Shell cross
-      //////////////////////////////////////
-      if(mat.illum == 4) {
-        rayQueryEXT rayQueryCnt;
-        rayQueryInitializeEXT(rayQueryCnt,     //
-                              topLevelAS,   // acceleration structure
-                              rayFlags,     // rayFlags
-                              0xFF,         // cullMask
-                              rayQueryGetWorldRayOriginEXT(rayQuery),     // ray origin
-                              0.0,          // ray min range
-                              rayQueryGetWorldRayDirectionEXT(rayQuery),  // ray direction
-                              rayQueryGetIntersectionTEXT(rayQuery, false));    // ray max range
-        
-        while(rayQueryProceedEXT(rayQueryCnt))
-        {
-          if(rayQueryGetIntersectionTypeEXT(rayQueryCnt, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
-          {
-            ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQueryCnt, false)];
-            MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
-            Materials  materials   = Materials(objResource.materialAddress);
-            int               matIdx = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQueryCnt, false)];
-            WaveFrontMaterial mat    = materials.m[matIdx];
-
-            
-            if(mat.illum == 8) { 
-              vec3 obj_position = vec3(rayQueryGetIntersectionWorldToObjectEXT(rayQueryCnt, false) * vec4(worldPos, 1));
-
-              if (abs(obj_position.x) < 0.5 && abs(obj_position.y) < 0.5 && abs(obj_position.z) < 0.5) {
-                rayQueryConfirmIntersectionEXT(rayQuery);
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      //////////////////////////////////////
-      // Core cross
-      //////////////////////////////////////
-      else if(mat.illum == 8) {
-        // Find a shell that would contain the intersection point
-        rayQueryEXT rayQueryCnt;
-        rayQueryInitializeEXT(rayQueryCnt,     //
-                              topLevelAS,   // acceleration structure
-                              rayFlags,     // rayFlags
-                              0xFF,         // cullMask
-                              rayQueryGetWorldRayOriginEXT(rayQuery),     // ray origin
-                              0.0,          // ray min range
-                              rayQueryGetWorldRayDirectionEXT(rayQuery),  // ray direction
-                              rayQueryGetIntersectionTEXT(rayQuery, false));    // ray max range
-        
-        while(rayQueryProceedEXT(rayQueryCnt))
-        {
-          if(rayQueryGetIntersectionTypeEXT(rayQueryCnt, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
-          {
-            ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQueryCnt, false)];
-            MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
-            Materials  materials   = Materials(objResource.materialAddress);
-            int               matIdx = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQueryCnt, false)];
-            WaveFrontMaterial mat    = materials.m[matIdx];
-
-            
-            if(mat.illum == 4) { 
-              vec3 obj_position = vec3(rayQueryGetIntersectionWorldToObjectEXT(rayQueryCnt, false) * vec4(worldPos, 1));
-
-              if (abs(obj_position.x) < 0.5 && abs(obj_position.y) < 0.5 && abs(obj_position.z) < 0.5) {
-                rayQueryConfirmIntersectionEXT(rayQuery);
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      else rayQueryConfirmIntersectionEXT(rayQuery);  // The hit was opaque
-    }
-  }
-
+  trace(origin.xyz, direction.xyz, rayQuery);
 
   bool hit = (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT);
   if(hit)
@@ -321,22 +289,6 @@ void main()
     prd.worldToObject       = rayQueryGetIntersectionWorldToObjectEXT(rayQuery, true);
     */
   }
-/*
-  traceRayEXT(topLevelAS,   // acceleration structure
-              rayFlags,     // rayFlags
-              0xFF,         // cullMask
-              0,            // sbtRecordOffset
-              0,            // sbtRecordStride
-              0,            // missIndex
-              origin.xyz,       // ray origin
-              0.0,          // ray min range
-              direction.xyz,    // ray direction
-              INFINITY,     // ray max range
-              0             // payload (location = 0)
-  );
-
-  vec3 pixelColor = prd.hitValue;
-*/
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)
   {
