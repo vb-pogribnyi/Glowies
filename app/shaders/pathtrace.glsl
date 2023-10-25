@@ -25,6 +25,8 @@
 // * `PathTrace()` will loop until the ray depth is reached or the environment is hit.
 // * `DirectLight()` is the contribution at the hit, if the shadow ray is not hitting anything.
 
+#extension GL_EXT_ray_query : enable
+
 #define ENVMAP 1
 #define RR 1        // Using russian roulette
 #define RR_DEPTH 0  // Minimum depth
@@ -255,6 +257,117 @@ void GetMaterialsAndTextures(inout State state, in Ray r)
   state.mat.sheen     = 0.0;
 }
 
+bool isInside(rayQueryEXT rayQuery, int dstIllum, vec3 testPoint) {
+  rayQueryEXT rayQueryCnt;
+  rayQueryInitializeEXT(rayQueryCnt,     //
+                        topLevelAS,   // acceleration structure
+                        gl_RayFlagsNoneEXT,     // rayFlags
+                        0xFF,         // cullMask
+                        rayQueryGetWorldRayOriginEXT(rayQuery),     // ray origin
+                        0.0,          // ray min range
+                        rayQueryGetWorldRayDirectionEXT(rayQuery),  // ray direction
+                        rayQueryGetIntersectionTEXT(rayQuery, false));    // ray max range
+  
+  while(rayQueryProceedEXT(rayQueryCnt))
+  {
+    if(rayQueryGetIntersectionTypeEXT(rayQueryCnt, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
+    {
+      ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQueryCnt, false)];
+      MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+      Materials  materials   = Materials(objResource.materialAddress);
+      int               matIdx = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQueryCnt, false)];
+      WaveFrontMaterial mat    = materials.m[matIdx];
+
+      
+      if(mat.illum == dstIllum) { 
+        vec3 obj_position = vec3(rayQueryGetIntersectionWorldToObjectEXT(rayQueryCnt, false) * vec4(testPoint, 1));
+
+        if (abs(obj_position.x) < 0.5 && abs(obj_position.y) < 0.5 && abs(obj_position.z) < 0.5) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery) {
+  hitPayload result;
+  rayQueryInitializeEXT(rayQuery,     //
+                        topLevelAS,   // acceleration structure
+                        gl_RayFlagsNoneEXT,     // rayFlags
+                        0xFF,         // cullMask
+                        origin,     // ray origin
+                        0.0001,          // ray min range
+                        direction,  // ray direction
+                        INFINITY);    // ray max range
+  
+  // Start traversal: return false if traversal is complete
+  while(rayQueryProceedEXT(rayQuery))
+  {
+    if(rayQueryGetIntersectionTypeEXT(rayQuery, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
+    {
+      // Object data
+      ObjDesc    objResource = objDesc.i[rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, false)];
+      MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+      Materials  materials   = Materials(objResource.materialAddress);
+      Indices    indices     = Indices(objResource.indexAddress);
+      Vertices   vertices    = Vertices(objResource.vertexAddress);
+      int               matIdx  = matIndices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
+      ivec3             ind     = indices.i[rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, false)];
+      WaveFrontMaterial mat    = materials.m[matIdx];
+
+      // Vertex of the triangle
+      Vertex v0 = vertices.v[ind.x];
+      Vertex v1 = vertices.v[ind.y];
+      Vertex v2 = vertices.v[ind.z];
+      vec2       bary         = rayQueryGetIntersectionBarycentricsEXT(rayQuery, false);
+      const vec3 barycentrics = vec3(1.0 - bary.x - bary.y, bary.x, bary.y);
+
+      // Computing the coordinates of the hit position
+      const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+      const vec3 worldPos = vec3(rayQueryGetIntersectionObjectToWorldEXT(rayQuery, false) * vec4(pos, 1.0));
+
+      //////////////////////////////////////
+      // Shell cross
+      //////////////////////////////////////
+      if(mat.illum == 4) {
+        if (isInside(rayQuery, 8, worldPos)) {
+          rayQueryConfirmIntersectionEXT(rayQuery);
+        }
+      }
+
+      //////////////////////////////////////
+      // Core cross
+      //////////////////////////////////////
+      else if(mat.illum == 8) {
+        if (isInside(rayQuery, 4, worldPos)) {
+          rayQueryConfirmIntersectionEXT(rayQuery);
+        }
+      }
+
+      else rayQueryConfirmIntersectionEXT(rayQuery);  // The hit was opaque
+    }
+  }
+
+  result.seed = 5;
+
+  bool hit = (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT);
+  if(hit)
+  {
+    result.hitT = rayQueryGetIntersectionTEXT(rayQuery, true);
+    result.primitiveID = rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
+    result.instanceID = rayQueryGetIntersectionInstanceIdEXT(rayQuery, true);
+    result.instanceCustomIndex = rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, true);
+    result.baryCoord = rayQueryGetIntersectionBarycentricsEXT(rayQuery, true);
+    result.objectToWorld = rayQueryGetIntersectionObjectToWorldEXT(rayQuery, true);
+    result.worldToObject = rayQueryGetIntersectionWorldToObjectEXT(rayQuery, true);
+  } else {
+    result.hitT = INFINITY;
+  }
+  return result;
+}
+
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
 vec3 PathTrace(Ray r)
@@ -276,112 +389,33 @@ vec3 PathTrace(Ray r)
     prd.hitT      = INFINITY;
     prd.test_distance = -1;
 
-    int nhits_shell = 0;
-    int nhits_inner = 0;
     ShadeState sstate;
-    int iter = 0;
-    for (; iter < 55; iter++) {
-      traceRayEXT(topLevelAS,   // acceleration structure
-                  rayFlags,     // rayFlags
-                  0xFF,         // cullMask
-                  0,            // sbtRecordOffset
-                  0,            // sbtRecordStride
-                  0,            // missIndex
-                  r.origin,     // ray origin
-                  0.0,          // ray min range
-                  r.direction,  // ray direction
-                  INFINITY,     // ray max range
-                  0             // payload (location = 0)
-      );
+    rayQueryEXT rayQuery;
+    uint seed = prd.seed;
+    prd = trace(r.origin, r.direction, rayQuery);
+    prd.seed = seed;
 
-      // Hitting the environment
-      if(prd.hitT == INFINITY)
+    // Hitting the environment
+    if(prd.hitT == INFINITY)
+    {
+      if(rtxState.debugging_mode != eNoDebug)
       {
-        // if (is_shell_hit != 0) return vec3(1, 1, 0);
-        // if (is_inner_hit != 0) return vec3(0, 0, 1);
-        if(rtxState.debugging_mode != eNoDebug)
-        {
-          if(depth != rtxState.maxDepth - 1)
-            return vec3(0);
-          if(rtxState.debugging_mode == eRadiance)
-            return currentRay.radiance;
-          else if(rtxState.debugging_mode == eWeight)
-            return currentRay.throughput;
-          else if(rtxState.debugging_mode == eRayDir)
-            return (r.direction + vec3(1)) * 0.5;
-        }
-
-        vec3 env = vec3(0);
-        // Done sampling return
-
-        return currentRay.radiance + (env * rtxState.hdrMultiplier * currentRay.throughput);
+        if(depth != rtxState.maxDepth - 1)
+          return vec3(0);
+        if(rtxState.debugging_mode == eRadiance)
+          return currentRay.radiance;
+        else if(rtxState.debugging_mode == eWeight)
+          return currentRay.throughput;
+        else if(rtxState.debugging_mode == eRayDir)
+          return (r.direction + vec3(1)) * 0.5;
       }
 
-      // Get Position, Normal, Tangents, Texture Coordinates, Color
-      sstate = GetShadeState(prd);
+      vec3 env = vec3(0);
+      // Done sampling return
 
-      // return sstate.position;
-
-      if (sstate.material.illum == 8) {
-        if (dot(sstate.normal, r.direction) < 0) nhits_inner++;
-        else nhits_inner--;
-
-        // Run another ray to determine if the point of contact is covered
-        prd.test_distance = prd.hitT;
-        prd.test_position = sstate.position;
-        prd.hitT = INFINITY;
-        traceRayEXT(topLevelAS,   // acceleration structure
-                    rayFlags,     // rayFlags
-                    0xFF,         // cullMask
-                    0,            // sbtRecordOffset
-                    0,            // sbtRecordStride
-                    0,            // missIndex
-                    r.origin,     // ray origin
-                    0.0,          // ray min range
-                    r.direction,  // ray direction
-                    INFINITY,     // ray max range
-                    0             // payload (location = 0)
-        );
-
-        prd.test_distance = -1;
-        if(prd.hitT == INFINITY) {
-          r.origin = sstate.position + r.direction * 0.000001 / abs(dot(normalize(r.direction), sstate.normal));
-          continue;
-        }
-      }
-      if (sstate.material.illum == 4) {
-        if (dot(sstate.normal, r.direction) < 0) nhits_shell++;
-        else nhits_shell--;
-        if (nhits_inner > 0) {
-          break;
-        }
-        r.origin = sstate.position + r.direction * 0.000001 / abs(dot(normalize(r.direction), sstate.normal));
-        continue;
-      }
-
-      if (sstate.material.illum == 5) {
-        vec3 modelVector = sstate.modelPosition - r.origin;
-
-        vec3 dist_vector = r.direction - dot(r.direction, modelVector);
-        float dist = length(dist_vector);
-        float shell_size = 0.5;
-        float prob = 1 - dist * dist / shell_size / shell_size;
-
-        if (r.direction != modelVector && !r.is_straight && rnd(prd.seed) > prob) {
-          r.direction = modelVector;
-          currentRay = prevRay;
-        } else {
-          r.origin = sstate.position + r.direction * 0.000001 / abs(dot(normalize(r.direction), sstate.normal));
-        }
-        continue;
-      }
-      break;
+      return currentRay.radiance + (env * rtxState.hdrMultiplier * currentRay.throughput);
     }
-/*
-    if (iter > 50) return vec3(1, 0, 0);
-    if (nhits_inner != 0) return vec3(0, 1, 0);
-    if (nhits_shell != 0) return vec3(0, 0, 1);
-*/
+    sstate = GetShadeState(prd);
 
     BsdfSampleRec bsdfSampleRec;
 

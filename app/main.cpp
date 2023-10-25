@@ -147,11 +147,6 @@ int main(int argc, char** argv)
   // Setup Imgui
   renderer.initGUI(0);  // Using sub-pass 0
 
-  float particle_scale = 0.01;
-  float particle_shell_scale = 0.1;
-  float filler_scale = 0.31;
-  
-  
   renderer.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths), 
                     nvmath::translation_mat4(nvmath::vec3f(0.0f, -0.02f, 0.0f)) * 
                     nvmath::scale_mat4(nvmath::vec3f(2.f, 1.f, 2.f)));

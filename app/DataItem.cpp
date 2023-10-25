@@ -2,7 +2,7 @@
 
 
  float Particle::scale = 0.01;
- float Particle::shell_scale = 0.03;
+ float Particle::shell_scale = 0.003;
 
 DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props) {
     uint32_t instance_id = 0;
