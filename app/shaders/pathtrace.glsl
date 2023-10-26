@@ -291,8 +291,9 @@ bool isInside(rayQueryEXT rayQuery, int dstIllum, vec3 testPoint) {
   return false;
 }
 
-hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery) {
+hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery, bool is_straight) {
   hitPayload result;
+  result.side_radiance = vec3(0);
   rayQueryInitializeEXT(rayQuery,     //
                         topLevelAS,   // acceleration structure
                         gl_RayFlagsNoneEXT,     // rayFlags
@@ -346,6 +347,18 @@ hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery) {
         }
       }
 
+      //////////////////////////////////////
+      // Particle cross
+      //////////////////////////////////////
+      else if(mat.illum == 5) {
+        if (is_straight) {
+          continue;
+        } else {
+          result.side_radiance = mat.emission;
+          continue;
+        }
+      }
+
       else rayQueryConfirmIntersectionEXT(rayQuery);  // The hit was opaque
     }
   }
@@ -378,22 +391,17 @@ vec3 PathTrace(Ray r)
   currentRay.absorption = vec3(0.0);
   RayState prevRay = currentRay;
 
-  int is_shell_hit = 0;
-  int is_inner_hit = 0;
-  int is_prtcl_hit = 0;
-
   for(int depth = 0; depth < rtxState.maxDepth; depth++)
   {
-    bool is_straight = true;
     uint rayFlags = gl_RayFlagsNoneEXT;
     prd.hitT      = INFINITY;
-    prd.test_distance = -1;
 
     ShadeState sstate;
     rayQueryEXT rayQuery;
     uint seed = prd.seed;
-    prd = trace(r.origin, r.direction, rayQuery);
+    prd = trace(r.origin, r.direction, rayQuery, r.is_straight);
     prd.seed = seed;
+    currentRay.radiance += prd.side_radiance;
 
     // Hitting the environment
     if(prd.hitT == INFINITY)

@@ -81,17 +81,5 @@ if (mat.illum == 2) return;
 if (mat.illum == 3) return;
 */
 
-  if (prd.test_distance > 0) {
-    if (mat.illum != 4) {
-      ignoreIntersectionEXT;
-      return;
-    }
-    vec3 modelOrigin = vec3(gl_ObjectToWorldEXT * vec4(0, 0, 0, 1.0));
-    vec3 radius_vector = modelOrigin - prd.test_position;
-    vec3 obj_position = vec3(gl_WorldToObjectEXT * vec4(prd.test_position, 1));
-
-    if (abs(obj_position.x) < 0.5 && abs(obj_position.y) < 0.5 && abs(obj_position.z) < 0.5) return;
-    ignoreIntersectionEXT;
-  }
   
 }

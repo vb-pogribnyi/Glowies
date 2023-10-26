@@ -11,8 +11,7 @@ struct hitPayload
   mat4x3 objectToWorld;
   mat4x3 worldToObject;
 
-  vec3 test_position;
-  float test_distance;
+  vec3 side_radiance;
 };
 
 struct hitPayloadSimpli {
