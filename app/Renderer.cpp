@@ -225,10 +225,10 @@ void Renderer::createDescriptorSetLayout()
 
   // Camera matrices
   m_descSetLayoutBind.addBinding(SceneBindings::eGlobals, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-                                 VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+                                 VK_SHADER_STAGE_COMPUTE_BIT);
   // Obj descriptions
   m_descSetLayoutBind.addBinding(SceneBindings::eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                  VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+                                  VK_SHADER_STAGE_COMPUTE_BIT);
 
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
@@ -663,9 +663,9 @@ void Renderer::createRtDescriptorSet()
 {
   // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
   m_rtDescSetLayoutBind.addBinding(RtxBindings::eTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
+                                   VK_SHADER_STAGE_COMPUTE_BIT);  // TLAS
   m_rtDescSetLayoutBind.addBinding(RtxBindings::eOutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
+                                   VK_SHADER_STAGE_COMPUTE_BIT);  // Output image
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
@@ -708,7 +708,7 @@ void Renderer::updateRtDescriptorSet()
 //
 void Renderer::createRtPipelineLayout() {
   // Push constant: we want to be able to update constants used by the shaders
-  VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+  VkPushConstantRange pushConstant{VK_SHADER_STAGE_COMPUTE_BIT,
                                    0, sizeof(PushConstantRay)};
 
 
@@ -727,6 +727,17 @@ void Renderer::createRtPipelineLayout() {
 void Renderer::createRtPipeline(ShaderNames shaders, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
           nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
 {
+
+  VkComputePipelineCreateInfo computePipelineCreateInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+  computePipelineCreateInfo.layout       = m_rtPipelineLayout;
+  computePipelineCreateInfo.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  computePipelineCreateInfo.stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.comp.spv", true, defaultSearchPaths, true));
+  computePipelineCreateInfo.stage.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+  computePipelineCreateInfo.stage.pName  = "main";
+
+  vkCreateComputePipelines(m_device, {}, 1, &computePipelineCreateInfo, nullptr, &pipeline);
+
+/*
   enum StageIndices
   {
     eRaygen,
@@ -811,12 +822,14 @@ void Renderer::createRtPipeline(ShaderNames shaders, std::vector<VkRayTracingSha
 
   for(auto& s : stages)
     vkDestroyShaderModule(m_device, s.module, nullptr);
+*/
 }
 
 
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
+#define GROUP_SIZE 8
 void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
@@ -833,17 +846,18 @@ void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clea
   m_pcRay.debugging_mode = eRayDir;
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
-  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_rtPipelineLayout, 0,
                           (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
   vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
-                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                     VK_SHADER_STAGE_COMPUTE_BIT,
                      0, sizeof(PushConstantRay), &m_pcRay);
 
 
   auto& regions = sbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
+  // vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
 
+  vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 
   m_debug.endLabel(cmdBuf);
 
