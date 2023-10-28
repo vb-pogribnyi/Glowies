@@ -190,20 +190,6 @@ int main(int argc, char** argv)
 
   auto start = std::chrono::system_clock::now();
 
-  ShaderNames shadersFull = {
-    .rgen = "spv/pathtrace.rgen.spv",
-    .rmiss = "spv/pathtrace.rmiss.spv",
-    .rchit = "spv/pathtrace.rchit.spv",
-    .rahit = "spv/pathtrace.rahit.spv"
-  };
-
-  ShaderNames shadersSimpli = {
-    .rgen = "spv/raytrace.rgen.spv",
-    .rmiss = "spv/raytrace.rmiss.spv",
-    .rchit = "spv/raytrace.rchit.spv",
-    .rahit = "spv/raytrace.rahit.spv"
-  };
-
   renderer.createOffscreenRender();
   renderer.createDescriptorSetLayout();
   // renderer.createGraphicsPipeline();
@@ -215,8 +201,8 @@ int main(int argc, char** argv)
   renderer.createTopLevelAS();
   renderer.createRtDescriptorSet();
   renderer.createRtPipelineLayout();
-  renderer.createRtPipeline(shadersFull, renderer.m_rtShaderGroups, renderer.m_sbtWrapper, renderer.m_rtPipeline);
-  renderer.createRtPipeline(shadersSimpli, renderer.m_rtShaderGroups_simpli, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
+  renderer.createRtPipeline("spv/pathtrace.comp.spv", renderer.m_rtShaderGroups, renderer.m_sbtWrapper, renderer.m_rtPipeline);
+  renderer.createRtPipeline("spv/raytrace.comp.spv", renderer.m_rtShaderGroups_simpli, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
 
   renderer.createPostDescriptor();
   renderer.createPostPipeline();
@@ -246,7 +232,7 @@ int main(int argc, char** argv)
     {
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  
+      if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
       if (ImGui::SliderFloat("Time", &time, 0.0f, 1.1f + time_offset / 2)) {
         f.setStage(time);
         renderer.resetFrame();

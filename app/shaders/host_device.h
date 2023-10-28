@@ -65,6 +65,7 @@ END_BINDING();
 // clang-format on
 
 
+#define GROUP_SIZE 8
 // Information of a obj model when referenced in a shader
 struct ObjDesc
 {

@@ -44,13 +44,6 @@ struct ParticleIdxs {
   uint32_t filler;
 };
 
-struct ShaderNames {
-  std::string rgen;
-  std::string rmiss;
-  std::string rchit;
-  std::string rahit;
-};
-
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -160,7 +153,7 @@ public:
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipelineLayout();
-  void createRtPipeline(ShaderNames shaders, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
+  void createRtPipeline(std::string shader, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
           nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
   void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
 

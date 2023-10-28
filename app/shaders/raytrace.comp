@@ -57,7 +57,7 @@ layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID f
 
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
-layout(local_size_x = 8, local_size_y = 8) in;
+layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE) in;
 
 
 vec3 computeDiffuse(WaveFrontMaterial mat, vec3 lightDir, vec3 normal)

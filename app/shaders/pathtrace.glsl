@@ -363,8 +363,6 @@ hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery, bool is_stra
     }
   }
 
-  result.seed = 5;
-
   bool hit = (rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedIntersectionNoneEXT);
   if(hit)
   {
@@ -383,7 +381,7 @@ hitPayload trace(vec3 origin, vec3 direction, rayQueryEXT rayQuery, bool is_stra
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
-vec3 PathTrace(Ray r)
+vec3 PathTrace(Ray r, uint seed)
 {
   RayState currentRay;
   currentRay.radiance   = vec3(0.0);
@@ -393,14 +391,9 @@ vec3 PathTrace(Ray r)
 
   for(int depth = 0; depth < rtxState.maxDepth; depth++)
   {
-    uint rayFlags = gl_RayFlagsNoneEXT;
-    prd.hitT      = INFINITY;
-
     ShadeState sstate;
     rayQueryEXT rayQuery;
-    uint seed = prd.seed;
-    prd = trace(r.origin, r.direction, rayQuery, r.is_straight);
-    prd.seed = seed;
+    hitPayload prd = trace(r.origin, r.direction, rayQuery, r.is_straight);
     currentRay.radiance += prd.side_radiance;
 
     // Hitting the environment
@@ -482,7 +475,7 @@ vec3 PathTrace(Ray r)
     vcontrib.radiance *= currentRay.throughput;
 
     // Sampling for the next ray
-    bsdfSampleRec.f = PbrSample(state, -r.direction, state.ffnormal, bsdfSampleRec.L, bsdfSampleRec.pdf, prd.seed, r.is_straight);
+    bsdfSampleRec.f = PbrSample(state, -r.direction, state.ffnormal, bsdfSampleRec.L, bsdfSampleRec.pdf, seed, r.is_straight);
 
     // Set absorption only if the ray is currently inside the object.
     if(dot(state.ffnormal, bsdfSampleRec.L) < 0.0)
@@ -514,7 +507,7 @@ vec3 PathTrace(Ray r)
     float rrPcont = (depth >= RR_DEPTH) ?
                         min(max(currentRay.throughput.x, max(currentRay.throughput.y, currentRay.throughput.z)) * state.eta * state.eta + 0.001, 0.95) :
                         1.0;
-    if(rnd(prd.seed) >= rrPcont)
+    if(rnd(seed) >= rrPcont)
       break;                // paths with low throughput that won't contribute
     currentRay.throughput /= rrPcont;  // boost the energy of the non-terminated paths
 
@@ -530,12 +523,12 @@ vec3 PathTrace(Ray r)
 
 //-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
-vec3 samplePixel(ivec2 imageCoords, ivec2 sizeImage)
+vec3 samplePixel(ivec2 imageCoords, ivec2 sizeImage, inout uint seed)
 {
   vec3 pixelColor = vec3(0);
 
   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
-  vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rnd(prd.seed), rnd(prd.seed));
+  vec2 subpixel_jitter = rtxState.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rnd(seed), rnd(seed));
 
   // Compute sampling position between [-1 .. 1]
   const vec2 pixelCenter = vec2(imageCoords) + subpixel_jitter;
@@ -549,8 +542,8 @@ vec3 samplePixel(ivec2 imageCoords, ivec2 sizeImage)
 
   // Depth-of-Field
   vec3  focalPoint        = uni.focalDist * direction.xyz;
-  float cam_r1            = rnd(prd.seed) * M_TWO_PI;
-  float cam_r2            = rnd(prd.seed) * uni.aperture;
+  float cam_r1            = rnd(seed) * M_TWO_PI;
+  float cam_r2            = rnd(seed) * uni.aperture;
   vec4  cam_right         = uni.viewInverse * vec4(1, 0, 0, 0);
   vec4  cam_up            = uni.viewInverse * vec4(0, 1, 0, 0);
   vec3  randomAperturePos = (cos(cam_r1) * cam_right.xyz + sin(cam_r1) * cam_up.xyz) * sqrt(cam_r2);
@@ -558,7 +551,7 @@ vec3 samplePixel(ivec2 imageCoords, ivec2 sizeImage)
 
   Ray ray = Ray(origin.xyz + randomAperturePos, finalRayDir, true);
 
-  vec3 radiance = PathTrace(ray);
+  vec3 radiance = PathTrace(ray, seed);
 /*
   // Removing fireflies
   float lum = dot(radiance, vec3(0.212671f, 0.715160f, 0.072169f));

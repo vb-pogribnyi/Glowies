@@ -724,118 +724,30 @@ void Renderer::createRtPipelineLayout() {
   vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
 }
 
-void Renderer::createRtPipeline(ShaderNames shaders, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
+void Renderer::createRtPipeline(std::string shader, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
           nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
 {
 
   VkComputePipelineCreateInfo computePipelineCreateInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
   computePipelineCreateInfo.layout       = m_rtPipelineLayout;
   computePipelineCreateInfo.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  computePipelineCreateInfo.stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.comp.spv", true, defaultSearchPaths, true));
+  computePipelineCreateInfo.stage.module = nvvk::createShaderModule(m_device, nvh::loadFile(shader, true, defaultSearchPaths, true));
   computePipelineCreateInfo.stage.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
   computePipelineCreateInfo.stage.pName  = "main";
 
   vkCreateComputePipelines(m_device, {}, 1, &computePipelineCreateInfo, nullptr, &pipeline);
-
-/*
-  enum StageIndices
-  {
-    eRaygen,
-    eMiss,
-    eClosestHit,
-    eAnyHit,
-    eShaderGroupCount
-  };
-
-  // All stages
-  std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
-  VkPipelineShaderStageCreateInfo stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-  stage.pName = "main";  // All the same entry point
-  // Raygen
-  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile(shaders.rgen, true, defaultSearchPaths, true));
-  stage.stage     = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-  stages[eRaygen] = stage;
-  // Miss
-  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile(shaders.rmiss, true, defaultSearchPaths, true));
-  stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
-  stages[eMiss] = stage;
-  // Hit Group - Closest Hit
-  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile(shaders.rchit, true, defaultSearchPaths, true));
-  stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-  stages[eClosestHit] = stage;
-  
-  // Hit Group - Any Hit
-  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile(shaders.rahit, true, defaultSearchPaths, true));
-  stage.stage         = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
-  stages[eAnyHit] = stage;
-
-
-  // Shader groups
-  VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
-  group.anyHitShader       = VK_SHADER_UNUSED_KHR;
-  group.closestHitShader   = VK_SHADER_UNUSED_KHR;
-  group.generalShader      = VK_SHADER_UNUSED_KHR;
-  group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
-  // Raygen
-  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-  group.generalShader = eRaygen;
-  groups.push_back(group);
-
-  // Miss
-  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-  group.generalShader = eMiss;
-  groups.push_back(group);
-
-  // closest hit shader
-  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-  group.generalShader    = VK_SHADER_UNUSED_KHR;
-  group.closestHitShader = eClosestHit;
-  group.anyHitShader     = eAnyHit;
-  groups.push_back(group);
-
-  // Assemble the shader stages and recursion depth info into the ray tracing pipeline
-  VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
-  rayPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());  // Stages are shaders
-  rayPipelineInfo.pStages    = stages.data();
-
-  // In this case, groups.size() == 4: we have one raygen group,
-  // two miss shader groups, and one hit group.
-  rayPipelineInfo.groupCount = static_cast<uint32_t>(groups.size());
-  rayPipelineInfo.pGroups    = groups.data();
-
-  // The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
-  // hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
-  // as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
-  // in the ray generation to avoid deep recursion.
-  rayPipelineInfo.maxPipelineRayRecursionDepth = 16;  // Ray depth
-  rayPipelineInfo.layout                       = m_rtPipelineLayout;
-
-  vkCreateRayTracingPipelinesKHR(m_device, {}, {}, 1, &rayPipelineInfo, nullptr, &pipeline);
-  sbtWrapper.create(pipeline, rayPipelineInfo);
-
-  // Spec only guarantees 1 level of "recursion". Check for that sad possibility here.
-  if(m_rtProperties.maxRayRecursionDepth <= 1)
-  {
-    throw std::runtime_error("Device fails to support ray recursion (m_rtProperties.maxRayRecursionDepth <= 1)");
-  }
-
-  for(auto& s : stages)
-    vkDestroyShaderModule(m_device, s.module, nullptr);
-*/
 }
 
 
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-#define GROUP_SIZE 8
 void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
 
-  m_pcRay.maxDepth = 10;               // How deep the path is
-  m_pcRay.maxSamples = 10;             // How many samples to do per render
+  m_pcRay.maxDepth = 64;               // How deep the path is
+  m_pcRay.maxSamples = 80;             // How many samples to do per render
   m_pcRay.fireflyClampThreshold = 1.0;  // to cut fireflies
   m_pcRay.hdrMultiplier = 1;          // To brightening the scene
   m_pcRay.debugging_mode = 0;         // See DebugMode
