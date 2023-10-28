@@ -47,13 +47,6 @@ static void onErrorCallback(int error, const char* description)
 void renderUI(Renderer& renderer)
 {
   ImGuiH::CameraWidget();
-  if(ImGui::CollapsingHeader("Light"))
-  {
-    ImGui::RadioButton("Point", &renderer.m_pcRaster.lightType, 0);
-
-    ImGui::SliderFloat3("Position", &renderer.m_pcRaster.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &renderer.m_pcRaster.lightIntensity, 0.f, 150.f);
-  }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -201,8 +194,8 @@ int main(int argc, char** argv)
   renderer.createTopLevelAS();
   renderer.createRtDescriptorSet();
   renderer.createRtPipelineLayout();
-  renderer.createRtPipeline("spv/pathtrace.comp.spv", renderer.m_rtShaderGroups, renderer.m_sbtWrapper, renderer.m_rtPipeline);
-  renderer.createRtPipeline("spv/raytrace.comp.spv", renderer.m_rtShaderGroups_simpli, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
+  renderer.createRtPipeline("spv/pathtrace.comp.spv", renderer.m_rtPipeline);
+  renderer.createRtPipeline("spv/raytrace.comp.spv", renderer.m_rtPipeline_simpli);
 
   renderer.createPostDescriptor();
   renderer.createPostPipeline();
@@ -286,22 +279,15 @@ int main(int argc, char** argv)
 
     // Offscreen render pass
     {
-      // VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-      // offscreenRenderPassBeginInfo.clearValueCount = 2;
-      // offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
-      // offscreenRenderPassBeginInfo.renderPass      = renderer.m_offscreenRenderPass;
-      // offscreenRenderPassBeginInfo.framebuffer     = renderer.m_offscreenFramebuffer;
-      // offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, renderer.getSize()};
-
       // Rendering Scene
       if (useRaytracer) {
-        renderer.raytrace(cmdBuf, clearColor, renderer.m_sbtWrapper, renderer.m_rtPipeline);
+        renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline);
       } else {
         // vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
         // renderer.rasterize(cmdBuf);
         // vkCmdEndRenderPass(cmdBuf);
 
-        renderer.raytrace(cmdBuf, clearColor, renderer.m_sbtWrapper_simpli, renderer.m_rtPipeline_simpli);
+        renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline_simpli);
       }
     }
 

@@ -74,7 +74,6 @@ public:
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
-  // void rasterize(const VkCommandBuffer& cmdBuff);
   void prepareFrame();
   void saveImage(const std::string& outFilename);
   void imageToBuffer(const nvvk::Texture& imgIn, const VkBuffer& pixelBufferOut);
@@ -95,16 +94,6 @@ public:
     nvmath::mat4f transform;    // Matrix of the instance
     uint32_t      objIndex{0};  // Model index reference
     int           hitgroup{0};
-  };
-
-
-  // Information pushed at each draw call
-  PushConstantRaster m_pcRaster{
-      {1},                // Identity matrix
-      {10.f, 15.f, 8.f},  // light position
-      0,                  // instance Id
-      100.f,              // light intensity
-      0                   // light type
   };
 
   // Array of objects and instances in the scene
@@ -153,9 +142,8 @@ public:
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipelineLayout();
-  void createRtPipeline(std::string shader, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
-          nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline);
+  void createRtPipeline(std::string shader, VkPipeline& pipeline);
+  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, VkPipeline& pipeline);
 
   void resetFrame();
   void updateFrame();
@@ -166,13 +154,9 @@ public:
   VkDescriptorPool                                m_rtDescPool;
   VkDescriptorSetLayout                           m_rtDescSetLayout;
   VkDescriptorSet                                 m_rtDescSet;
-  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
-  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups_simpli;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
   VkPipeline                                        m_rtPipeline_simpli;
-  nvvk::SBTWrapper                                  m_sbtWrapper;
-  nvvk::SBTWrapper                                  m_sbtWrapper_simpli;
   VkBuildAccelerationStructureFlagsKHR m_rtFlags;
 
   nvvk::Buffer                    m_rtSBTBuffer;

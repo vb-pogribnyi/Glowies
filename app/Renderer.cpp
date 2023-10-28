@@ -388,8 +388,6 @@ void Renderer::destroyResources()
 
   // #VKRay
   m_rtBuilder.destroy();
-  m_sbtWrapper.destroy();
-  m_sbtWrapper_simpli.destroy();
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
   vkDestroyPipeline(m_device, m_rtPipeline_simpli, nullptr);
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
@@ -569,8 +567,6 @@ void Renderer::initRayTracing()
   vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
 
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
-  m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
-  m_sbtWrapper_simpli.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -724,8 +720,7 @@ void Renderer::createRtPipelineLayout() {
   vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
 }
 
-void Renderer::createRtPipeline(std::string shader, std::vector<VkRayTracingShaderGroupCreateInfoKHR>& groups,
-          nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
+void Renderer::createRtPipeline(std::string shader, VkPipeline& pipeline)
 {
 
   VkComputePipelineCreateInfo computePipelineCreateInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
@@ -742,7 +737,7 @@ void Renderer::createRtPipeline(std::string shader, std::vector<VkRayTracingShad
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, nvvk::SBTWrapper& sbtWrapper, VkPipeline& pipeline)
+void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor, VkPipeline& pipeline)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
 
@@ -764,10 +759,6 @@ void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clea
   vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
                      VK_SHADER_STAGE_COMPUTE_BIT,
                      0, sizeof(PushConstantRay), &m_pcRay);
-
-
-  auto& regions = sbtWrapper.getRegions();
-  // vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
 
   vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 
