@@ -151,8 +151,52 @@ vec3 BCurve::eval(float t) {
             + 3 * float((1 - t) * pow(t, 2)) * p3 + float(pow(t, 3)) * p4;
 }
 
-Filter::Filter(Renderer &renderer, FilterProps props, const ModelIndices &indices, float time_offset) : 
-        props(props), renderer(renderer) {
+Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
+  npy::npy_data d = npy::read_npy<double>(weightsPath);
+
+    int idx = 0;
+    DIProperties props;
+    for (double value : d.data) {
+        float pos_x = idx / d.shape[0];
+        float pos_y = idx % d.shape[1];
+        pos_x *= SPACING;
+        pos_y *= SPACING;
+
+        props = {
+            .is_has_reference = true,
+            .is_construction = false,
+            .position = vec3(pos_x, 1.5, pos_y),
+            .scale = (float)value
+        };
+        DataItem di(renderer, props, renderer.indices);
+        weights.push_back(di);
+        idx++;
+    }
+
+    props = {
+        .is_has_reference = false,
+        .is_construction = true,
+        .position = vec3(0, 3.5, 0),
+        .scale = (float)0.0
+    };
+    dst = new DataItem(renderer, props, renderer.indices);
+}
+
+Filter::~Filter()
+{
+    for (Particle* p : particles) {
+        delete p;
+    }
+    delete dst;
+}
+
+void Filter::init(FilterProps props, float time_offset) {
+    // Clean up previously used particles
+    for (Particle* p : particles) {
+        delete p;
+    }
+
+    this->props = props;
     std::vector<vec3> prts_end = props.result->split(props.prts_per_size * props.result->props.scale, prt_w, prt_h);
     std::vector<vec3> prts_start(prts_end.size());
     for (vec3& startpos : prts_start) {
@@ -177,14 +221,7 @@ Filter::Filter(Renderer &renderer, FilterProps props, const ModelIndices &indice
             .is_splashing = false,
             .position = endpos
         };
-        particles.push_back(new Particle(renderer, prtProps, indices));
-    }
-}
-
-Filter::~Filter()
-{
-    for (Particle* p : particles) {
-        delete p;
+        particles.push_back(new Particle(renderer, prtProps, renderer.indices));
     }
 }
 
@@ -197,4 +234,26 @@ void Filter::setStage(float value) {
         scale *= 1.01f;
         particles[i]->moveTo(curves[i].eval(curve_value), renderer, stage, scale); 
     }
+}
+
+Data::Data(Renderer& renderer, const std::string path) {
+  npy::npy_data d = npy::read_npy<double>(path);
+
+  int idx = 0;
+  for (double value : d.data) {
+    float pos_x = idx / d.shape[0];
+    float pos_y = idx % d.shape[1];
+    pos_x *= SPACING;
+    pos_y *= SPACING;
+    
+    DIProperties props = {
+        .is_has_reference = false,
+        .is_construction = false,
+        .position = vec3(pos_x, 0, pos_y),
+        .scale = (float)value
+    };
+    DataItem di(renderer, props, renderer.indices);
+    items.push_back(di);
+    idx++;
+  }
 }

@@ -3,6 +3,9 @@
 
 #include <vector>
 #include "Renderer.h"
+#include "npy.hpp"
+
+#define SPACING 1.2
 
 struct DIProperties {
     bool is_has_reference;
@@ -36,10 +39,6 @@ public:
     static float shell_scale;
     vec3 position;
     ParticleIdxs idxs;
-    // int idx_main;
-    // int idx_shell;
-    // int idx_di_shell;
-    // int idx_neutral;
     PRTProperties props;
     Renderer &renderer;
 
@@ -71,13 +70,22 @@ public:
     Renderer& renderer;
     std::vector<Particle*> particles;
     std::vector<BCurve> curves;
+    DataItem* dst;
+    std::vector<DataItem> weights;
     float prt_w, prt_h;
 
-    Filter(Renderer &renderer, FilterProps props, const ModelIndices &indices, float time_offset);
+    Filter(Renderer& renderer, std::string weightsPath);
     ~Filter();
+    void init(FilterProps props, float time_offset);
 
     // The transition stage would vary between 0 and 1
     void setStage(float value);
+};
+
+class Data {
+public:
+    std::vector<DataItem> items;
+    Data(Renderer& renderer, const std::string path);
 };
 
 #endif
