@@ -22,6 +22,7 @@ struct PRTProperties {
 };
 class DataItem {
 public:
+    Renderer& renderer;
     vec3 position;
     mat4 transform;
     int idx_main;
@@ -31,6 +32,7 @@ public:
     DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices);
     void moveTo(vec3 position, Renderer &renderer);
     std::vector<vec3> split(float n, float& w, float& h);
+    void setScale(float scale);
 };
 
 class Particle {
@@ -70,6 +72,8 @@ public:
     Renderer& renderer;
     std::vector<Particle*> particles;
     std::vector<BCurve> curves;
+    DataItem* dst_pos;
+    DataItem* dst_neg;
     DataItem* dst;
     std::vector<DataItem> weights;
     float prt_w, prt_h;
@@ -84,8 +88,10 @@ public:
 
 class Data {
 public:
+    int width, height;
     std::vector<DataItem> items;
     Data(Renderer& renderer, const std::string path);
+    std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
 };
 
 #endif

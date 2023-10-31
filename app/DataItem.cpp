@@ -4,7 +4,7 @@
  float Particle::scale = 0.01;
  float Particle::shell_scale = 0.03;
 
-DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props) {
+DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     uint32_t instance_id = 0;
     if (props.scale > 0) {
         if (props.is_construction) instance_id = indices.cube_pos_prt_idx;
@@ -42,6 +42,7 @@ void DataItem::moveTo(vec3 position, Renderer &renderer) {
 }
 
 std::vector<vec3> DataItem::split(float n, float& w, float& h) {
+    n = std::max(n, 1.f);
     int nrows, ncols, nlrs;                         // The last one is number of layers
 
     float di_volume = props.scale * props.scale;    // Height is 1. scale x scale x 1
@@ -79,6 +80,11 @@ std::vector<vec3> DataItem::split(float n, float& w, float& h) {
     }
 
     return result;
+}
+
+void DataItem::setScale(float scale) {
+    props.scale = scale;
+    moveTo(props.position, renderer); // This updates transform matrix and triggers TLAS update
 }
 
 Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
@@ -177,9 +183,11 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
         .is_has_reference = false,
         .is_construction = true,
         .position = vec3(0, 3.5, 0),
-        .scale = (float)0.0
+        .scale = (float)1.0
     };
-    dst = new DataItem(renderer, props, renderer.indices);
+    dst_pos = new DataItem(renderer, props, renderer.indices);
+    props.scale = -1.0;
+    dst_neg = new DataItem(renderer, props, renderer.indices);
 }
 
 Filter::~Filter()
@@ -187,7 +195,8 @@ Filter::~Filter()
     for (Particle* p : particles) {
         delete p;
     }
-    delete dst;
+    delete dst_pos;
+    delete dst_neg;
 }
 
 void Filter::init(FilterProps props, float time_offset) {
@@ -195,9 +204,21 @@ void Filter::init(FilterProps props, float time_offset) {
     for (Particle* p : particles) {
         delete p;
     }
+    dst_pos->setScale(0);
+    dst_neg->setScale(0);
+    if (props.src.size() != weights.size()) {
+        throw std::runtime_error("Data slice and filter sizes does not match");
+    }
+
+    float result_value = 0;
+    for (int i = 0; i < props.src.size(); i++) {
+        result_value += props.src[i]->props.scale * weights[i].props.scale;
+    }
+    dst = result_value > 0 ? dst_pos : dst_neg;
+    dst->setScale(result_value);
 
     this->props = props;
-    std::vector<vec3> prts_end = props.result->split(props.prts_per_size * props.result->props.scale, prt_w, prt_h);
+    std::vector<vec3> prts_end = dst->split(props.prts_per_size * dst->props.scale, prt_w, prt_h);
     std::vector<vec3> prts_start(prts_end.size());
     for (vec3& startpos : prts_start) {
         startpos.x = ((float)(rand() % 100) / 100 - 0.5) * 5;
@@ -209,7 +230,7 @@ void Filter::init(FilterProps props, float time_offset) {
         BCurve curve;
         curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset;
         curve.p1 = prts_start[i];
-        curve.p4 = vec3(props.result->transform * vec4(prts_end[i], 1));
+        curve.p4 = vec3(dst->transform * vec4(prts_end[i], 1));
         curve.p3 = curve.p4 - vec3(0, 0.5, 0);
         curve.p2 = prts_start[i] + 0.1f * (curve.p4 - prts_start[i]);
         curves.push_back(curve);
@@ -217,7 +238,7 @@ void Filter::init(FilterProps props, float time_offset) {
 
     for (vec3 endpos : prts_start) {
         PRTProperties prtProps = {
-            .is_positive = props.result->props.scale > 0,
+            .is_positive = dst->props.scale > 0,
             .is_splashing = false,
             .position = endpos
         };
@@ -232,13 +253,15 @@ void Filter::setStage(float value) {
         vec3 scale(prt_w, prt_h, prt_w);
         // Add scale offset. If the filler and DI overlap, weird things happen.
         scale *= 1.01f;
-        particles[i]->moveTo(curves[i].eval(curve_value), renderer, stage, scale); 
+        particles[i]->moveTo(curves[i].eval(curve_value), renderer, stage, scale * dst->props.scale); 
     }
 }
 
 Data::Data(Renderer& renderer, const std::string path) {
   npy::npy_data d = npy::read_npy<double>(path);
 
+  width = d.shape[0];
+  height = d.shape[1];
   int idx = 0;
   for (double value : d.data) {
     float pos_x = idx / d.shape[0];
@@ -256,4 +279,23 @@ Data::Data(Renderer& renderer, const std::string path) {
     items.push_back(di);
     idx++;
   }
+}
+
+std::vector<DataItem*> Data::getRange(int x1, int x2, int y1, int y2) {
+    x1 = std::max(0, x1);
+    x2 = std::max(x2, x1);
+    x2 = std::min(x2, width);
+    y1 = std::max(0, y1);
+    y2 = std::max(y2, y1);
+    y2 = std::min(y2, height);
+
+    std::vector<DataItem*> result;
+    result.reserve((x2 - x1) * (y2 - y1));
+    for (int i = 0; i < items.size(); i++) {
+        int x = i % width;
+        int y = i / width;
+        if (x >= x1 && x <= x2 && y >= y1 && y <= y2) result.push_back(&items[i]);
+    }
+
+    return result;
 }

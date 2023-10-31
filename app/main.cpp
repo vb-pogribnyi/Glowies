@@ -175,14 +175,8 @@ int main(int argc, char** argv)
   // props.position = vec3(-1, 0, 0);
   // DataItem di3(renderer, props, renderer.indices);
 
-  FilterProps filterProps = {
-    .prts_per_size = 100,
-    // .result =  &di3,
-    // .src = {&di1, &di2}
-  };
   Data data(renderer, "data.npy");
   Filter f(renderer, "weights.npy");
-  // f.init(filterProps, 0.5);
 
   float time_offset = 0.5;
 
@@ -213,6 +207,12 @@ int main(int argc, char** argv)
   ImGui_ImplGlfw_InitForVulkan(window, true);
   float time = 0;
 
+  FilterProps filterProps = {
+    .prts_per_size = 100,
+    // .result =  &di3,
+    .src = data.getRange(0, 2, 0, 2)
+  };
+  f.init(filterProps, 0.5); // This function needs TLAS to be built
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
@@ -231,7 +231,7 @@ int main(int argc, char** argv)
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
       if (ImGui::SliderFloat("Time", &time, 0.0f, 1.1f + time_offset / 2)) {
-        // f.setStage(time);
+        f.setStage(time);
         renderer.resetFrame();
       }
       if (ImGui::Button("Save image")) {
@@ -253,7 +253,7 @@ int main(int argc, char** argv)
           img_name.insert(img_name.begin(), 5 - img_name.size(), '0');
           renderer.saveImage("images/" + img_name + ".png");
           std::cout << img_name << std::endl;
-          // f.setStage(time);
+          f.setStage(time);
           renderer.resetFrame();
         }
       } else {
