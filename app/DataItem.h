@@ -12,6 +12,7 @@ struct DIProperties {
     bool is_construction;
     vec3 position;
     float scale;
+    float scale_ref;
 };
 
 struct PRTProperties {
@@ -32,7 +33,7 @@ public:
     DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices);
     void moveTo(vec3 position, Renderer &renderer);
     std::vector<vec3> split(float n, float& w, float& h);
-    void setScale(float scale);
+    void setScale(float scale, float scale_ref = 0.0f);
 };
 
 class Particle {
@@ -75,7 +76,9 @@ public:
     DataItem* dst_pos;
     DataItem* dst_neg;
     DataItem* dst;
-    std::vector<DataItem> weights;
+    std::vector<double> weights;
+    std::vector<DataItem> weights_pos;
+    std::vector<DataItem> weights_neg;
     float prt_w, prt_h;
 
     Filter(Renderer& renderer, std::string weightsPath);

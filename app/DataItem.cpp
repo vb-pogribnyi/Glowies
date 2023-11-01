@@ -33,7 +33,7 @@ void DataItem::moveTo(vec3 position, Renderer &renderer) {
     renderer.m_tlas[idx_main].transform = nvvk::toTransformMatrixKHR(transform);
     if (props.is_has_reference) {
         renderer.m_instances[idx_ref].transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.4, position.z)) * 
-            nvmath::scale_mat4(nvmath::vec3f(1.0f, 0.8f, 1.0f));
+            nvmath::scale_mat4(nvmath::vec3f(props.scale_ref, 0.8f, props.scale_ref));
         renderer.m_tlas[idx_ref].transform = nvvk::toTransformMatrixKHR(
             renderer.m_instances[idx_ref].transform);
     }
@@ -82,8 +82,9 @@ std::vector<vec3> DataItem::split(float n, float& w, float& h) {
     return result;
 }
 
-void DataItem::setScale(float scale) {
+void DataItem::setScale(float scale, float scale_ref) {
     props.scale = scale;
+    props.scale_ref = scale_ref;
     moveTo(props.position, renderer); // This updates transform matrix and triggers TLAS update
 }
 
@@ -163,6 +164,7 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
     int idx = 0;
     DIProperties props;
     for (double value : d.data) {
+        weights.push_back(value);
         float pos_x = idx / d.shape[0];
         float pos_y = idx % d.shape[1];
         pos_x *= SPACING;
@@ -172,10 +174,14 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
             .is_has_reference = true,
             .is_construction = false,
             .position = vec3(pos_x, 1.5, pos_y),
-            .scale = (float)value
+            .scale = 1.0f,
+            .scale_ref = 1.0f
         };
-        DataItem di(renderer, props, renderer.indices);
-        weights.push_back(di);
+        DataItem di_pos(renderer, props, renderer.indices);
+        weights_pos.push_back(di_pos);
+        props.scale = -1.0f;
+        DataItem di_neg(renderer, props, renderer.indices);
+        weights_neg.push_back(di_neg);
         idx++;
     }
 
@@ -212,7 +218,15 @@ void Filter::init(FilterProps props, float time_offset) {
 
     float result_value = 0;
     for (int i = 0; i < props.src.size(); i++) {
-        result_value += props.src[i]->props.scale * weights[i].props.scale;
+        float applied_value = props.src[i]->props.scale * weights[i];
+        result_value += applied_value;
+        if (applied_value > 0) {
+            weights_pos[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
+            weights_neg[i].setScale(0);
+        } else {
+            weights_neg[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
+            weights_pos[i].setScale(0, 0);
+        }
     }
     dst = result_value > 0 ? dst_pos : dst_neg;
     dst->setScale(result_value);
