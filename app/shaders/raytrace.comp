@@ -296,6 +296,7 @@ void main()
 
   // Debug - Heatmap
   if(rtxState.debugging_mode == eHeatmap)
+  // if(true)
   {
     uint64_t end  = clockRealtimeEXT();
     float    low  = rtxState.minHeatmap;

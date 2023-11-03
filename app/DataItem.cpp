@@ -206,16 +206,22 @@ Filter::~Filter()
 }
 
 void Filter::init(FilterProps props, float time_offset) {
+    this->props = props;
     // Clean up previously used particles
     for (Particle* p : particles) {
         delete p;
     }
+    particles.clear();
     dst_pos->setScale(0);
     dst_neg->setScale(0);
     if (props.src.size() != weights.size()) {
         throw std::runtime_error("Data slice and filter sizes does not match");
     }
 
+    std::vector<vec3> particles_pos;
+    std::vector<vec3> particles_neg;
+    vec3 *particles_constructing;
+    int n_mrg_particles, n_constr_particles;
     float result_value = 0;
     for (int i = 0; i < props.src.size(); i++) {
         float applied_value = props.src[i]->props.scale * weights[i];
@@ -223,21 +229,38 @@ void Filter::init(FilterProps props, float time_offset) {
         if (applied_value > 0) {
             weights_pos[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
             weights_neg[i].setScale(0);
+            for (vec3 prt : weights_pos[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
+                particles_pos.push_back((vec3)(weights_pos[i].transform * vec4(prt, 1)));
+            }
         } else {
             weights_neg[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
             weights_pos[i].setScale(0, 0);
+            for (vec3 prt : weights_neg[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
+                particles_neg.push_back((vec3)(weights_neg[i].transform * vec4(prt, 1)));
+            }
         }
     }
+    particles.reserve(particles_pos.size() + particles_neg.size());
+    if (particles_pos.size() > particles_neg.size()) {
+        n_constr_particles = particles_pos.size() - particles_neg.size();
+        n_mrg_particles = particles_neg.size();
+        particles_constructing = &(particles_pos[particles_pos.size() - n_constr_particles]);
+    } else {
+        n_constr_particles = particles_neg.size() - particles_pos.size();
+        n_mrg_particles = particles_pos.size();
+        particles_constructing = &(particles_neg[particles_pos.size() - n_constr_particles]);
+    }
+
     dst = result_value > 0 ? dst_pos : dst_neg;
     dst->setScale(result_value);
 
-    this->props = props;
-    std::vector<vec3> prts_end = dst->split(props.prts_per_size * dst->props.scale, prt_w, prt_h);
+    // Constructing particles
+    std::vector<vec3> prts_end = dst->split(n_constr_particles, prt_w, prt_h);
     std::vector<vec3> prts_start(prts_end.size());
+    int i = 0;
     for (vec3& startpos : prts_start) {
-        startpos.x = ((float)(rand() % 100) / 100 - 0.5) * 5;
-        startpos.y = ((float)(rand() % 100) / 100 - 0.5) * 1 + 0.5;
-        startpos.z = ((float)(rand() % 100) / 100 - 0.5) * 5;
+        startpos = particles_constructing[i];
+        i++;
     }
 
     for (int i = 0; i < prts_end.size(); i++) {
@@ -246,7 +269,7 @@ void Filter::init(FilterProps props, float time_offset) {
         curve.p1 = prts_start[i];
         curve.p4 = vec3(dst->transform * vec4(prts_end[i], 1));
         curve.p3 = curve.p4 - vec3(0, 0.5, 0);
-        curve.p2 = prts_start[i] + 0.1f * (curve.p4 - prts_start[i]);
+        curve.p2 = curve.p1 + vec3(0, 1.0, 0);
         curves.push_back(curve);
     }
 
@@ -256,6 +279,39 @@ void Filter::init(FilterProps props, float time_offset) {
             .is_splashing = false,
             .position = endpos
         };
+        particles.push_back(new Particle(renderer, prtProps, renderer.indices));
+    }
+
+    // Merging particles
+    for (int i = 0; i < n_mrg_particles; i++) {
+        vec3 start_pt1 = particles_pos[i];
+        vec3 start_pt2 = particles_neg[i];
+        float mrg_height = 5.2;
+        vec3 dist_vector = start_pt2 - start_pt1;
+        vec3 mrg_pt = start_pt1 + 0.5f * dist_vector;
+        mrg_pt.y = mrg_height;
+
+        BCurve curve;
+        curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset;
+        curve.p1 = start_pt1;
+        curve.p4 = mrg_pt;
+        curve.p3 = curve.p4 - 0.5f * dist_vector;
+        curve.p2 = curve.p1 + vec3(0, 1.0, 0);
+        curves.push_back(curve);
+
+        curve.p1 = start_pt2;
+        curve.p3 = curve.p4 + 0.5f * dist_vector;
+        curve.p2 = curve.p1 + vec3(0, 1.0, 0);
+        curves.push_back(curve);
+
+        PRTProperties prtProps = {
+            .is_positive = true,
+            .is_splashing = true,
+            .position = start_pt1
+        };
+        particles.push_back(new Particle(renderer, prtProps, renderer.indices));
+
+        prtProps.is_positive = false;
         particles.push_back(new Particle(renderer, prtProps, renderer.indices));
     }
 }
