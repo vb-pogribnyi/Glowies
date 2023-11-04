@@ -90,7 +90,7 @@ void DataItem::setScale(float scale, float scale_ref) {
 
 Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     idxs = renderer.getParticle(props.is_positive);
-    moveTo(props.position, renderer, 0, vec3(0.0f));
+    moveTo(props.position, renderer, 0, vec3(0.0f), 0.0);
 }
 
 Particle::~Particle()
@@ -120,17 +120,19 @@ void Particle::hide()
         renderer.m_instances[idxs.filler].transform);
 }
 
-void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale) {
+void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale, float show_transition) {
     if (filler_transition < 0) filler_transition = 0;
     if (filler_transition > 1) filler_transition = 1;
+    if (show_transition < 0) show_transition = 0;
+    if (show_transition > 1) show_transition = 1;
 
     renderer.m_instances[idxs.particle_signed].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
-         nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * scale));
+         nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * scale * show_transition));
     renderer.m_tlas[idxs.particle_signed].transform = nvvk::toTransformMatrixKHR(
         renderer.m_instances[idxs.particle_signed].transform);
 
     renderer.m_instances[idxs.shell].transform = nvmath::translation_mat4(nvmath::vec3f(position)) * 
-         nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * shell_scale));
+         nvmath::scale_mat4(nvmath::vec3f((1 - filler_transition) * shell_scale * show_transition));
     renderer.m_tlas[idxs.shell].transform = nvvk::toTransformMatrixKHR(
         renderer.m_instances[idxs.shell].transform);
 
@@ -319,12 +321,13 @@ void Filter::init(FilterProps props, float time_offset) {
 void Filter::setStage(float value) {
     for(int i = 0; i < particles.size(); i++) {
         float curve_value = value + curves[i].time_offset;
-        std::cout << curves[i].time_offset << std::endl;
         float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
         vec3 scale(prt_w, prt_h, prt_w);
         // Add scale offset. If the filler and DI overlap, weird things happen.
         scale *= 1.01f;
-        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale * dst->props.scale); 
+        //if (curve_value / ANIMATION_DURATION < 0.01) particles[i]->hide();
+        float show_transition = curve_value / ANIMATION_DURATION * 100;
+        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale * dst->props.scale, show_transition); 
     }
 }
 

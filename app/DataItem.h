@@ -62,7 +62,7 @@ public:
     Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices);
     ~Particle();
     void hide();
-    void moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale);
+    void moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale, float show_transition = 1.0);
 };
 
 

@@ -177,7 +177,9 @@ int main(int argc, char** argv)
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
-  float time = 0;
+  float time = -TIME_OFFSET / 2;
+  const float max_time = ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY;
+  const float min_time = -TIME_OFFSET / 2;
 
   FilterProps filterProps = {
     .prts_per_size = 100,
@@ -201,7 +203,7 @@ int main(int argc, char** argv)
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
-      if (ImGui::SliderFloat("Time", &time, -TIME_OFFSET / 2, ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY)) {
+      if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
         f.setStage(time);
         renderer.resetFrame();
       }
@@ -216,7 +218,7 @@ int main(int argc, char** argv)
     }
 
     if (is_recording) {
-      if (time < 1.5) {
+      if (time < max_time) {
         if (renderer.m_pcRay.frame > 100) {
           time += 0.01;
           int img_id = time * 1000;
