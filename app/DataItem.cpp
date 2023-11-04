@@ -50,6 +50,7 @@ std::vector<vec3> DataItem::split(float n, float& w, float& h) {
     float point_volume = di_volume / n;
     float point_height = cbrt(point_volume);
     nlrs = floor(1.0 / point_height);
+    nlrs = std::min((float)nlrs, n);
     if (nlrs == 0) nlrs = 1;
     h = 1.0 / nlrs;
     float pts_per_layer = n / nlrs;
@@ -161,7 +162,7 @@ vec3 BCurve::eval(float t) {
 }
 
 Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
-  npy::npy_data d = npy::read_npy<double>(weightsPath);
+    npy::npy_data d = npy::read_npy<double>(weightsPath);
 
     int idx = 0;
     DIProperties props;
@@ -214,6 +215,7 @@ void Filter::init(FilterProps props, float time_offset) {
         delete p;
     }
     particles.clear();
+    curves.clear();
     dst_pos->setScale(0);
     dst_neg->setScale(0);
     if (props.src.size() != weights.size()) {
@@ -225,17 +227,30 @@ void Filter::init(FilterProps props, float time_offset) {
     vec3 *particles_constructing;
     int n_mrg_particles, n_constr_particles;
     float result_value = 0;
+    float result_x = 0;
+    float result_y = 0;
+    float result_z = 0;
     for (int i = 0; i < props.src.size(); i++) {
         float applied_value = props.src[i]->props.scale * weights[i];
         result_value += applied_value;
+        vec3 target_pos = props.src[i]->props.position;
+
+        result_x += target_pos.x;
+        result_y += target_pos.z;
+        result_z += target_pos.y;
+
+        float target_scale = std::abs(props.src[i]->props.scale) + 0.001;
+        target_pos.y += .5;
         if (applied_value > 0) {
-            weights_pos[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
+            weights_pos[i].setScale(std::abs(applied_value), target_scale);
+            weights_pos[i].moveTo(target_pos, renderer);
             weights_neg[i].setScale(0);
             for (vec3 prt : weights_pos[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
                 particles_pos.push_back((vec3)(weights_pos[i].transform * vec4(prt, 1)));
             }
         } else {
-            weights_neg[i].setScale(std::abs(applied_value), std::abs(props.src[i]->props.scale));
+            weights_neg[i].setScale(std::abs(applied_value), target_scale);
+            weights_neg[i].moveTo(target_pos, renderer);
             weights_pos[i].setScale(0, 0);
             for (vec3 prt : weights_neg[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
                 particles_neg.push_back((vec3)(weights_neg[i].transform * vec4(prt, 1)));
@@ -255,6 +270,7 @@ void Filter::init(FilterProps props, float time_offset) {
 
     dst = result_value > 0 ? dst_pos : dst_neg;
     dst->setScale(result_value);
+    dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()), renderer);
 
     // Constructing particles
     std::vector<vec3> prts_end = dst->split(n_constr_particles, prt_w, prt_h);
@@ -322,12 +338,12 @@ void Filter::setStage(float value) {
     for(int i = 0; i < particles.size(); i++) {
         float curve_value = value + curves[i].time_offset;
         float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
-        vec3 scale(prt_w, prt_h, prt_w);
+        vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
         // Add scale offset. If the filler and DI overlap, weird things happen.
         scale *= 1.01f;
         //if (curve_value / ANIMATION_DURATION < 0.01) particles[i]->hide();
         float show_transition = curve_value / ANIMATION_DURATION * 100;
-        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale * dst->props.scale, show_transition); 
+        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
     }
 }
 

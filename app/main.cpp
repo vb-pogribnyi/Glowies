@@ -183,7 +183,7 @@ int main(int argc, char** argv)
 
   FilterProps filterProps = {
     .prts_per_size = 100,
-    .src = data.getRange(0, 2, 0, 2)
+    .src = data.getRange(1, 3, 4, 6)
   };
   f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // Main loop
