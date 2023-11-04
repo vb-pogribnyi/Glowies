@@ -5,7 +5,21 @@
 #include "Renderer.h"
 #include "npy.hpp"
 
+// Distance constraints
 #define SPACING 1.2
+#define MERGE_HEIGHT 3.0
+#define LAYER_HEIGHT 4.0
+
+// Time constraints
+#define CONSTRUCTION_DELAY 1.5
+#define TIME_OFFSET 1.0
+#define ANIMATION_DURATION 1.0
+#define TRANSFORM_DURATION 0.1
+
+
+// Quantity constraints
+#define RESERVE_PARTICLES 1024 * 1
+
 
 struct DIProperties {
     bool is_has_reference;

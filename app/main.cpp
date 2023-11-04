@@ -133,7 +133,7 @@ int main(int argc, char** argv)
   vkctx.setGCTQueueWithPresent(surface);
 
   renderer.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
-  renderer.loadModels(1024 * 1);
+  renderer.loadModels(RESERVE_PARTICLES);
   renderer.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   renderer.createDepthBuffer();
   renderer.createRenderPass();
@@ -149,36 +149,8 @@ int main(int argc, char** argv)
                     nvmath::translation_mat4(nvmath::vec3f(0, 10.0, 0)) * 
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
-  // DIProperties props = {
-  //   .is_has_reference = true,
-  //   .is_construction = false,
-  //   .position = vec3(0., 0, 0),
-  //   .scale = -0.3
-  // };
-  // DataItem di1(renderer, props, renderer.indices);
-
-  // props.scale = 0.4;
-  // props.position = vec3(2, 0, 0);
-  // DataItem di2(renderer, props, renderer.indices);
-
-  // props.scale = 0.2;
-  // props.position = vec3(3, 0, 2);
-  // DataItem di21(renderer, props, renderer.indices);
-
-  // props.scale = -0.2;
-  // props.position = vec3(1, 0, 2);
-  // DataItem di22(renderer, props, renderer.indices);
-
-  // props.scale = 0.9;
-  // props.is_construction = true;
-  // props.is_has_reference = false;
-  // props.position = vec3(-1, 0, 0);
-  // DataItem di3(renderer, props, renderer.indices);
-
   Data data(renderer, "data.npy");
   Filter f(renderer, "weights.npy");
-
-  float time_offset = 0.5;
 
   auto start = std::chrono::system_clock::now();
 
@@ -209,10 +181,9 @@ int main(int argc, char** argv)
 
   FilterProps filterProps = {
     .prts_per_size = 100,
-    // .result =  &di3,
     .src = data.getRange(0, 2, 0, 2)
   };
-  f.init(filterProps, 0.5); // This function needs TLAS to be built
+  f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
@@ -230,7 +201,7 @@ int main(int argc, char** argv)
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
-      if (ImGui::SliderFloat("Time", &time, 0.0f, 1.1f + time_offset / 2)) {
+      if (ImGui::SliderFloat("Time", &time, -TIME_OFFSET / 2, ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY)) {
         f.setStage(time);
         renderer.resetFrame();
       }
@@ -248,7 +219,7 @@ int main(int argc, char** argv)
       if (time < 1.5) {
         if (renderer.m_pcRay.frame > 100) {
           time += 0.01;
-          int img_id = time * 100;
+          int img_id = time * 1000;
           std::string img_name = std::to_string(img_id);
           img_name.insert(img_name.begin(), 5 - img_name.size(), '0');
           renderer.saveImage("images/" + img_name + ".png");
@@ -287,10 +258,6 @@ int main(int argc, char** argv)
       if (useRaytracer) {
         renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline);
       } else {
-        // vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        // renderer.rasterize(cmdBuf);
-        // vkCmdEndRenderPass(cmdBuf);
-
         renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline_simpli);
       }
     }

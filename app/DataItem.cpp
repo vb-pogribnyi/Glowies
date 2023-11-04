@@ -188,7 +188,7 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
     props = {
         .is_has_reference = false,
         .is_construction = true,
-        .position = vec3(0, 3.5, 0),
+        .position = vec3(0, LAYER_HEIGHT, 0),
         .scale = (float)1.0
     };
     dst_pos = new DataItem(renderer, props, renderer.indices);
@@ -265,7 +265,8 @@ void Filter::init(FilterProps props, float time_offset) {
 
     for (int i = 0; i < prts_end.size(); i++) {
         BCurve curve;
-        curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset;
+        // Duration -0.5 : 1.5 + CONSTRUCTION_DELAY
+        curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset + (float)i / prts_end.size() - CONSTRUCTION_DELAY;
         curve.p1 = prts_start[i];
         curve.p4 = vec3(dst->transform * vec4(prts_end[i], 1));
         curve.p3 = curve.p4 - vec3(0, 0.5, 0);
@@ -286,10 +287,9 @@ void Filter::init(FilterProps props, float time_offset) {
     for (int i = 0; i < n_mrg_particles; i++) {
         vec3 start_pt1 = particles_pos[i];
         vec3 start_pt2 = particles_neg[i];
-        float mrg_height = 5.2;
         vec3 dist_vector = start_pt2 - start_pt1;
         vec3 mrg_pt = start_pt1 + 0.5f * dist_vector;
-        mrg_pt.y = mrg_height;
+        mrg_pt.y = MERGE_HEIGHT;
 
         BCurve curve;
         curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset;
@@ -319,11 +319,12 @@ void Filter::init(FilterProps props, float time_offset) {
 void Filter::setStage(float value) {
     for(int i = 0; i < particles.size(); i++) {
         float curve_value = value + curves[i].time_offset;
-        float stage = (curve_value - 1) * 10;
+        std::cout << curves[i].time_offset << std::endl;
+        float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
         vec3 scale(prt_w, prt_h, prt_w);
         // Add scale offset. If the filler and DI overlap, weird things happen.
         scale *= 1.01f;
-        particles[i]->moveTo(curves[i].eval(curve_value), renderer, stage, scale * dst->props.scale); 
+        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale * dst->props.scale); 
     }
 }
 
