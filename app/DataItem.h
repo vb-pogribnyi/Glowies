@@ -90,6 +90,7 @@ public:
     DataItem* dst_pos;
     DataItem* dst_neg;
     DataItem* dst;
+    int width, height;
     std::vector<double> weights;
     std::vector<DataItem> weights_pos;
     std::vector<DataItem> weights_neg;

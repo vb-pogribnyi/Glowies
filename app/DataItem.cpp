@@ -163,6 +163,8 @@ vec3 BCurve::eval(float t) {
 
 Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
     npy::npy_data d = npy::read_npy<double>(weightsPath);
+    width = d.shape[0];
+    height = d.shape[1];
 
     int idx = 0;
     DIProperties props;

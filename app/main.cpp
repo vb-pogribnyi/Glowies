@@ -180,10 +180,11 @@ int main(int argc, char** argv)
   float time = -TIME_OFFSET / 2;
   const float max_time = ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY;
   const float min_time = -TIME_OFFSET / 2;
+  int filter_x = 0, filter_y = 0;
 
   FilterProps filterProps = {
     .prts_per_size = 100,
-    .src = data.getRange(1, 3, 4, 6)
+    .src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1)
   };
   f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // Main loop
@@ -204,6 +205,14 @@ int main(int argc, char** argv)
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
       if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
+        f.setStage(time);
+        renderer.resetFrame();
+      }
+      if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f.width) ||
+            ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f.height)) {
+        filterProps.src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1);
+        f.init(filterProps, TIME_OFFSET);
+        time = min_time;
         f.setStage(time);
         renderer.resetFrame();
       }
