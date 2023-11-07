@@ -92,6 +92,10 @@ public:
     DataItem* dst;
     int width, height;
     std::vector<double> weights;
+    std::vector<std::pair<float, float>> weights_scales;
+    std::vector<vec3> weights_positions;
+    std::vector<std::pair<float, float>> weights_scales_old;
+    std::vector<vec3> weights_positions_old;
     std::vector<DataItem> weights_pos;
     std::vector<DataItem> weights_neg;
     float prt_w, prt_h;

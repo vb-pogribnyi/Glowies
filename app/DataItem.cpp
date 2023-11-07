@@ -1,8 +1,7 @@
 #include "DataItem.h"
 
-
- float Particle::scale = 0.01;
- float Particle::shell_scale = 0.03;
+float Particle::scale = 0.01;
+float Particle::shell_scale = 0.03;
 
 DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     uint32_t instance_id = 0;
@@ -27,6 +26,7 @@ DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &i
 }
 
 void DataItem::moveTo(vec3 position, Renderer &renderer) {
+    props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
          nvmath::scale_mat4(nvmath::vec3f(props.scale, 1, props.scale));
     renderer.m_instances[idx_main].transform = transform;
@@ -170,6 +170,10 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
     DIProperties props;
     for (double value : d.data) {
         weights.push_back(value);
+        weights_scales.push_back({value, 1});
+        weights_positions.push_back(vec3(0, 0, 0));
+        weights_scales_old.push_back({value, 1});
+        weights_positions_old.push_back(vec3(0, 0, 0));
         float pos_x = idx / d.shape[0];
         float pos_y = idx % d.shape[1];
         pos_x *= SPACING;
@@ -243,20 +247,37 @@ void Filter::init(FilterProps props, float time_offset) {
 
         float target_scale = std::abs(props.src[i]->props.scale) + 0.001;
         target_pos.y += .5;
+
+        weights_scales_old[i] = weights_scales[i];
+        weights_positions_old[i] = weights_positions[i];
+        weights_scales[i] = {applied_value, target_scale};
+        weights_positions[i] = target_pos;
+        // TODO: Sets, then resets item scale and position. Make a change so that it happens only once.
+
+        weights_pos[i].moveTo(target_pos, renderer);
+        weights_neg[i].moveTo(target_pos, renderer);
+
         if (applied_value > 0) {
             weights_pos[i].setScale(std::abs(applied_value), target_scale);
-            weights_pos[i].moveTo(target_pos, renderer);
             weights_neg[i].setScale(0);
             for (vec3 prt : weights_pos[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
                 particles_pos.push_back((vec3)(weights_pos[i].transform * vec4(prt, 1)));
             }
         } else {
             weights_neg[i].setScale(std::abs(applied_value), target_scale);
-            weights_neg[i].moveTo(target_pos, renderer);
             weights_pos[i].setScale(0, 0);
             for (vec3 prt : weights_neg[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
                 particles_neg.push_back((vec3)(weights_neg[i].transform * vec4(prt, 1)));
             }
+        }
+        weights_pos[i].moveTo(weights_positions_old[i], renderer);
+        weights_neg[i].moveTo(weights_positions_old[i], renderer);
+        if (weights_scales_old[i].first > 0) {
+            weights_pos[i].setScale(std::abs(weights_scales_old[i].first), weights_scales_old[i].second);
+            weights_neg[i].setScale(0, 0);
+        } else {
+            weights_neg[i].setScale(std::abs(weights_scales_old[i].first), weights_scales_old[i].second);
+            weights_pos[i].setScale(0, 0);
         }
     }
     particles.reserve(particles_pos.size() + particles_neg.size());
@@ -337,15 +358,75 @@ void Filter::init(FilterProps props, float time_offset) {
 }
 
 void Filter::setStage(float value) {
+    float move_time = 1.0;
+    float unscale_time = 1.0;
+    float scale_time = 1.0;
+    float merge_time = ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY + TIME_OFFSET / 2;
+    float value_unscale     = 1;
+    float value_move        = 2;
+    float value_scale       = 3;
+    float value_merge       = 4;
+    // Reset particles, so they don't hand around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
-        float curve_value = value + curves[i].time_offset;
-        float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
-        vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
-        // Add scale offset. If the filler and DI overlap, weird things happen.
-        scale *= 1.01f;
-        //if (curve_value / ANIMATION_DURATION < 0.01) particles[i]->hide();
-        float show_transition = curve_value / ANIMATION_DURATION * 100;
-        particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
+        particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0); 
+    }
+
+    if (value > 0 && value <= value_unscale) {
+        // Unscale stage
+        value = (value - 0) * unscale_time;
+        for (int i = 0; i < weights.size(); i++) {
+            std::pair<float, float> scale = weights_scales_old[i];
+            float weighted_scale = (1 - value) * scale.first + value * weights[i];
+            float weighted_target_scale = (1 - value) * scale.second + value * 1.0;
+            if (weighted_scale > 0) {
+                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_neg[i].setScale(0);
+            } else {
+                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_pos[i].setScale(0);
+            }
+        }
+    } else if (value > value_unscale && value <= value_move) {
+        // Move stage
+        // TODO: Create 3 sets of BCurves: one for initial, one for linear and one for final movement parts
+        //  - Initialize the sets, if they are not already
+        //  - Split the stage into three, call eval() function for the right value
+        value = (value - value_unscale) * move_time;
+        for (int i = 0; i < weights.size(); i++) {
+            vec3 position = weights_positions[i];
+            vec3 position_old = weights_positions_old[i];
+            vec3 weighted_position = value * position + (1 - value) * position_old;
+            weights_pos[i].moveTo(weighted_position, renderer);
+            weights_neg[i].moveTo(weighted_position, renderer);
+        }
+    } else if (value > value_move && value <= value_scale) {
+        // Scale stage
+        value = (value - value_move) * scale_time;
+        for (int i = 0; i < weights.size(); i++) {
+            std::pair<float, float> scale = weights_scales[i];
+            std::pair<float, float> scale_old = {weights[i], 1.0};
+            float weighted_scale = value * scale.first + (1 - value) * scale_old.first;
+            float weighted_target_scale = value * scale.second + (1 - value) * scale_old.second;
+            if (weighted_scale > 0) {
+                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_neg[i].setScale(0);
+            } else {
+                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_pos[i].setScale(0);
+            }
+        }
+    } else if (value > value_scale && value <= value_merge) {
+        // Merge stage
+        value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
+        for(int i = 0; i < particles.size(); i++) {
+            float curve_value = value + curves[i].time_offset;
+            float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
+            vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
+            // Add scale offset. If the filler and DI overlap, weird things happen.
+            scale *= 1.01f;
+            float show_transition = curve_value / ANIMATION_DURATION * 100;
+            particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
+        }
     }
 }
 

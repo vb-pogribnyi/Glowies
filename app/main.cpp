@@ -177,9 +177,9 @@ int main(int argc, char** argv)
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
-  float time = -TIME_OFFSET / 2;
-  const float max_time = ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY;
-  const float min_time = -TIME_OFFSET / 2;
+  const float max_time = 4;
+  const float min_time = 0;
+  float time = min_time;
   int filter_x = 0, filter_y = 0;
 
   FilterProps filterProps = {
