@@ -13,6 +13,7 @@
 // Time constraints
 #define CONSTRUCTION_DELAY 1.5
 #define TIME_OFFSET 1.0
+#define TIME_OFFSET_DI_MOVEMENT 0.2
 #define ANIMATION_DURATION 1.0
 #define TRANSFORM_DURATION 0.1
 
@@ -78,7 +79,7 @@ struct BCurve {
     vec3 p2;
     vec3 p3;
     vec3 p4;
-    vec3 eval(float t);
+    vec3 eval(float t) const;
 };
 
 class Filter {
@@ -87,6 +88,10 @@ public:
     Renderer& renderer;
     std::vector<Particle*> particles;
     std::vector<BCurve> curves;
+    std::vector<BCurve> di_curves_start;
+    std::vector<BCurve> di_curves_mid;
+    std::vector<BCurve> di_curves_end;
+    std::vector<float> movement_offsets;
     DataItem* dst_pos;
     DataItem* dst_neg;
     DataItem* dst;
@@ -103,6 +108,8 @@ public:
     Filter(Renderer& renderer, std::string weightsPath);
     ~Filter();
     void init(FilterProps props, float time_offset);
+    void init_di_curves();
+    vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
 
     // The transition stage would vary between 0 and 1
     void setStage(float value);

@@ -154,7 +154,7 @@ void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition
     renderer.is_rebuild_tlas = true;
 }
 
-vec3 BCurve::eval(float t) {
+vec3 BCurve::eval(float t) const {
     if (t < 0) t = 0;
     if (t > 1) t = 1;
     return float(pow(1 - t, 3)) * p1 + 3 * float(pow(1 - t, 2) * t) * p2
@@ -222,6 +222,10 @@ void Filter::init(FilterProps props, float time_offset) {
     }
     particles.clear();
     curves.clear();
+    di_curves_start.clear();
+    di_curves_mid.clear();
+    di_curves_end.clear();
+    movement_offsets.clear();
     dst_pos->setScale(0);
     dst_neg->setScale(0);
     if (props.src.size() != weights.size()) {
@@ -244,6 +248,7 @@ void Filter::init(FilterProps props, float time_offset) {
         result_x += target_pos.x;
         result_y += target_pos.z;
         result_z += target_pos.y;
+        movement_offsets.push_back(((float)(rand() % 100) / 100 - 0.5) * TIME_OFFSET_DI_MOVEMENT);
 
         float target_scale = std::abs(props.src[i]->props.scale) + 0.001;
         target_pos.y += .5;
@@ -366,6 +371,9 @@ void Filter::setStage(float value) {
     float value_move        = 2;
     float value_scale       = 3;
     float value_merge       = 4;
+    // TODO: Create a single for loop, use movement_offsets to randomize the movement
+
+
     // Reset particles, so they don't hand around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
         particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0); 
@@ -388,18 +396,18 @@ void Filter::setStage(float value) {
         }
     } else if (value > value_unscale && value <= value_move) {
         // Move stage
-        // TODO: Create 3 sets of BCurves: one for initial, one for linear and one for final movement parts
-        //  - Initialize the sets, if they are not already
-        //  - Split the stage into three, call eval() function for the right value
         value = (value - value_unscale) * move_time;
+        if (di_curves_start.size() == 0) init_di_curves();
         for (int i = 0; i < weights.size(); i++) {
-            vec3 position = weights_positions[i];
-            vec3 position_old = weights_positions_old[i];
-            vec3 weighted_position = value * position + (1 - value) * position_old;
-            weights_pos[i].moveTo(weighted_position, renderer);
-            weights_neg[i].moveTo(weighted_position, renderer);
+            vec3 position = get_di_movement_pos(di_curves_start[i], di_curves_mid[i], di_curves_end[i], value / move_time);
+            weights_pos[i].moveTo(position, renderer);
+            weights_neg[i].moveTo(position, renderer);
         }
     } else if (value > value_move && value <= value_scale) {
+        for (int i = 0; i < weights.size(); i++) {
+            weights_pos[i].moveTo(weights_positions[i], renderer);
+            weights_neg[i].moveTo(weights_positions[i], renderer);
+        }
         // Scale stage
         value = (value - value_move) * scale_time;
         for (int i = 0; i < weights.size(); i++) {
@@ -416,6 +424,10 @@ void Filter::setStage(float value) {
             }
         }
     } else if (value > value_scale && value <= value_merge) {
+        for (int i = 0; i < weights.size(); i++) {
+            weights_pos[i].moveTo(weights_positions[i], renderer);
+            weights_neg[i].moveTo(weights_positions[i], renderer);
+        }
         // Merge stage
         value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
         for(int i = 0; i < particles.size(); i++) {
@@ -427,6 +439,51 @@ void Filter::setStage(float value) {
             float show_transition = curve_value / ANIMATION_DURATION * 100;
             particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
         }
+    }
+}
+
+void Filter::init_di_curves() {
+    for (int i = 0; i < weights.size(); i++) {
+        vec3 dist_vector = nvmath::normalize(weights_positions[i] - weights_positions_old[i]);
+        vec3 vertical_offset = vec3(0, 1, 0);
+        float lead_length = 0.2;
+
+        BCurve curve;
+        curve.time_offset = 0;
+        curve.p1 = weights_positions_old[i];
+        curve.p4 = curve.p1 + vertical_offset;
+        curve.p3 = curve.p4 - vertical_offset * lead_length;
+        curve.p2 = curve.p1 + vertical_offset * lead_length;
+        di_curves_start.push_back(curve);
+
+        curve.p1 = curve.p4;
+        curve.p4 = weights_positions[i] + vertical_offset;
+        curve.p3 = curve.p4 - dist_vector * lead_length;
+        curve.p2 = curve.p1 + dist_vector * lead_length;
+        di_curves_mid.push_back(curve);
+
+        curve.p1 = curve.p4;
+        curve.p4 = weights_positions[i];
+        curve.p3 = curve.p4 + vertical_offset * lead_length;
+        curve.p2 = curve.p1 - vertical_offset * lead_length;
+        di_curves_end.push_back(curve);
+    }
+}
+
+vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value) {
+    float time_start = 0.2;
+    float time_end = 0.2;
+    float time_mid = 1 - time_start - time_end;
+
+    if (value < time_start) {
+        value = (value - 0) / time_start;
+        return start.eval(value);
+    } else if (value < (time_start + time_mid)) {
+        value = (value - time_start) / time_mid;
+        return mid.eval(value);
+    } else {
+        value = (value - time_start - time_mid) / time_end;
+        return end.eval(value);
     }
 }
 
