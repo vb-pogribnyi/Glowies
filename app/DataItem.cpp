@@ -250,7 +250,7 @@ void Filter::init(FilterProps props, float time_offset) {
         result_z += target_pos.y;
         movement_offsets.push_back(((float)(rand() % 100) / 100 - 0.5) * TIME_OFFSET_DI_MOVEMENT);
 
-        float target_scale = std::abs(props.src[i]->props.scale) + 0.001;
+        float target_scale = props.src[i]->props.scale;
         target_pos.y += .5;
 
         weights_scales_old[i] = weights_scales[i];
@@ -278,10 +278,10 @@ void Filter::init(FilterProps props, float time_offset) {
         weights_pos[i].moveTo(weights_positions_old[i], renderer);
         weights_neg[i].moveTo(weights_positions_old[i], renderer);
         if (weights_scales_old[i].first > 0) {
-            weights_pos[i].setScale(std::abs(weights_scales_old[i].first), weights_scales_old[i].second);
+            weights_pos[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
             weights_neg[i].setScale(0, 0);
         } else {
-            weights_neg[i].setScale(std::abs(weights_scales_old[i].first), weights_scales_old[i].second);
+            weights_neg[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
             weights_pos[i].setScale(0, 0);
         }
     }
@@ -371,64 +371,64 @@ void Filter::setStage(float value) {
     float value_move        = 2;
     float value_scale       = 3;
     float value_merge       = 4;
-    // TODO: Create a single for loop, use movement_offsets to randomize the movement
-
 
     // Reset particles, so they don't hand around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
         particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0); 
     }
 
-    if (value > 0 && value <= value_unscale) {
-        // Unscale stage
-        value = (value - 0) * unscale_time;
-        for (int i = 0; i < weights.size(); i++) {
+    if (di_curves_start.size() == 0) init_di_curves();
+    for (int i = 0; i < weights.size(); i++) {
+        float value_inner = value + di_curves_start[i].time_offset;
+        if (value_inner > 0 && value_inner <= value_unscale) {
+            // Unscale stage
+            value_inner = (value_inner - 0) * unscale_time;
             std::pair<float, float> scale = weights_scales_old[i];
-            float weighted_scale = (1 - value) * scale.first + value * weights[i];
-            float weighted_target_scale = (1 - value) * scale.second + value * 1.0;
+            float weighted_scale = (1 - value_inner) * scale.first + value_inner * weights[i];
+            float weighted_target_scale = (1 - value_inner) * scale.second + value_inner * 1.0;
             if (weighted_scale > 0) {
-                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
                 weights_neg[i].setScale(0);
             } else {
-                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
                 weights_pos[i].setScale(0);
             }
-        }
-    } else if (value > value_unscale && value <= value_move) {
-        // Move stage
-        value = (value - value_unscale) * move_time;
-        if (di_curves_start.size() == 0) init_di_curves();
-        for (int i = 0; i < weights.size(); i++) {
-            vec3 position = get_di_movement_pos(di_curves_start[i], di_curves_mid[i], di_curves_end[i], value / move_time);
+        } else if (value_inner > value_unscale && value_inner <= value_move) {
+            // Move stage
+            value_inner = (value_inner - value_unscale) * move_time;
+            vec3 position = get_di_movement_pos(di_curves_start[i], di_curves_mid[i], di_curves_end[i], value_inner / move_time);
             weights_pos[i].moveTo(position, renderer);
             weights_neg[i].moveTo(position, renderer);
-        }
-    } else if (value > value_move && value <= value_scale) {
-        for (int i = 0; i < weights.size(); i++) {
+        } else if (value_inner > value_move && value_inner <= value_scale) {
+            // Scale stage
+            value_inner = (value_inner - value_move) * scale_time;
             weights_pos[i].moveTo(weights_positions[i], renderer);
             weights_neg[i].moveTo(weights_positions[i], renderer);
-        }
-        // Scale stage
-        value = (value - value_move) * scale_time;
-        for (int i = 0; i < weights.size(); i++) {
             std::pair<float, float> scale = weights_scales[i];
             std::pair<float, float> scale_old = {weights[i], 1.0};
-            float weighted_scale = value * scale.first + (1 - value) * scale_old.first;
-            float weighted_target_scale = value * scale.second + (1 - value) * scale_old.second;
+            float weighted_scale = value_inner * scale.first + (1 - value_inner) * scale_old.first;
+            float weighted_target_scale = value_inner * scale.second + (1 - value_inner) * scale_old.second;
             if (weighted_scale > 0) {
-                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
                 weights_neg[i].setScale(0);
             } else {
-                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale));
+                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
+                weights_pos[i].setScale(0);
+            }
+        } else if (value_inner > value_scale && value <= value_merge) {
+            // Merge stage
+            weights_pos[i].moveTo(weights_positions[i], renderer);
+            weights_neg[i].moveTo(weights_positions[i], renderer);
+            if (weights_scales[i].first > 0) {
+                weights_pos[i].setScale(std::abs(weights_scales[i].first), std::abs(weights_scales[i].second) + 0.001);
+                weights_neg[i].setScale(0);
+            } else {
+                weights_neg[i].setScale(std::abs(weights_scales[i].first), std::abs(weights_scales[i].second) + 0.001);
                 weights_pos[i].setScale(0);
             }
         }
-    } else if (value > value_scale && value <= value_merge) {
-        for (int i = 0; i < weights.size(); i++) {
-            weights_pos[i].moveTo(weights_positions[i], renderer);
-            weights_neg[i].moveTo(weights_positions[i], renderer);
-        }
-        // Merge stage
+    }
+    if (value > value_scale && value <= value_merge) {
         value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
         for(int i = 0; i < particles.size(); i++) {
             float curve_value = value + curves[i].time_offset;
@@ -449,7 +449,7 @@ void Filter::init_di_curves() {
         float lead_length = 0.2;
 
         BCurve curve;
-        curve.time_offset = 0;
+        curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * TIME_OFFSET_DI_MOVEMENT;
         curve.p1 = weights_positions_old[i];
         curve.p4 = curve.p1 + vertical_offset;
         curve.p3 = curve.p4 - vertical_offset * lead_length;
