@@ -46,9 +46,11 @@ public:
     DIProperties props;
 
     DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices);
-    void moveTo(vec3 position, Renderer &renderer);
+    void moveTo(vec3 position, bool is_hidden=false);
     std::vector<vec3> split(float n, float& w, float& h);
     void setScale(float scale, float scale_ref = 0.0f);
+    void hide();
+    void show();
 };
 
 class Particle {
@@ -71,6 +73,7 @@ struct FilterProps {
     float prts_per_size;        // Number of particles per size unit
     DataItem *result;
     std::vector<DataItem*> src;
+    DataItem* dst;
 };
 
 struct BCurve {
@@ -119,8 +122,10 @@ class Data {
 public:
     int width, height;
     std::vector<DataItem> items;
-    Data(Renderer& renderer, const std::string path);
+    Data(Renderer& renderer, const std::string path, vec3 offset);
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
+    void hide();
+    void show();
 };
 
 #endif

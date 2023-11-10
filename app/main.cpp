@@ -149,7 +149,8 @@ int main(int argc, char** argv)
                     nvmath::translation_mat4(nvmath::vec3f(0, 10.0, 0)) * 
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
-  Data data(renderer, "data.npy");
+  Data data(renderer, "data.npy", vec3(0, 0, 0));
+  Data data_out(renderer, "output.npy", vec3(SPACING, LAYER_HEIGHT, SPACING));
   Filter f(renderer, "weights.npy");
 
   auto start = std::chrono::system_clock::now();
@@ -184,8 +185,10 @@ int main(int argc, char** argv)
 
   FilterProps filterProps = {
     .prts_per_size = 100,
-    .src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1)
+    .src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1),
+    .dst = 0
   };
+  data_out.hide();
   f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // Main loop
   while(!glfwWindowShouldClose(window))
@@ -211,6 +214,10 @@ int main(int argc, char** argv)
       if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f.width) ||
             ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f.height)) {
         filterProps.src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1);
+
+        int out_x = filter_x - f.width / 2 + 1;
+        int out_y = filter_y - f.height / 2 + 1;
+        filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
         f.init(filterProps, TIME_OFFSET);
         time = min_time;
         f.setStage(time);
