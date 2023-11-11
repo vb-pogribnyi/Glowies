@@ -99,8 +99,10 @@ public:
     DataItem* dst_pos;
     DataItem* dst_neg;
     DataItem* dst;
+    float result_value;
     int width, height;
     std::vector<double> weights;
+    double bias = 0.2;
     std::vector<std::pair<float, float>> weights_scales;
     std::vector<vec3> weights_positions;
     std::vector<std::pair<float, float>> weights_scales_old;

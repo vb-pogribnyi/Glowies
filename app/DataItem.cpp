@@ -254,7 +254,7 @@ void Filter::init(FilterProps props, float time_offset) {
     std::vector<vec3> particles_neg;
     vec3 *particles_constructing;
     int n_mrg_particles, n_constr_particles;
-    float result_value = 0;
+    result_value = 0;
     float result_x = 0;
     float result_y = 0;
     float result_z = 0;
@@ -391,21 +391,25 @@ void Filter::setStage(float value) {
     float move_time = 1.0;
     float unscale_time = 1.0;
     float scale_time = 1.0;
+    float bias_time = 1.0;
     float merge_time = ANIMATION_DURATION + TRANSFORM_DURATION + TIME_OFFSET / 2 + CONSTRUCTION_DELAY + TIME_OFFSET / 2;
     float value_unscale     = 1;
     float value_move        = 2;
     float value_scale       = 3;
     float value_merge       = 4;
+    float value_bias        = 5;
 
     // Reset particles, so they don't hand around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
-        particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0); 
+        particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0);
     }
 
     if (di_curves_start.size() == 0) init_di_curves();
     for (int i = 0; i < weights.size(); i++) {
         float value_inner = value + di_curves_start[i].time_offset;
-        if (value_inner > 0 && value_inner <= value_unscale) {
+        value_inner = std::max(value_inner, 0.0f);
+        value_inner = std::min(value_inner, value_scale);
+        if (value_inner >= 0 && value_inner <= value_unscale) {
             // Unscale stage
             value_inner = (value_inner - 0) * unscale_time;
             std::pair<float, float> scale = weights_scales_old[i];
@@ -440,17 +444,6 @@ void Filter::setStage(float value) {
                 weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
                 weights_pos[i].setScale(0);
             }
-        } else if (value_inner > value_scale && value <= value_merge) {
-            // Merge stage
-            weights_pos[i].moveTo(weights_positions[i]);
-            weights_neg[i].moveTo(weights_positions[i]);
-            if (weights_scales[i].first > 0) {
-                weights_pos[i].setScale(std::abs(weights_scales[i].first), std::abs(weights_scales[i].second) + 0.001);
-                weights_neg[i].setScale(0);
-            } else {
-                weights_neg[i].setScale(std::abs(weights_scales[i].first), std::abs(weights_scales[i].second) + 0.001);
-                weights_pos[i].setScale(0);
-            }
         }
     }
     if (value > value_scale && value <= value_merge) {
@@ -464,6 +457,18 @@ void Filter::setStage(float value) {
             float show_transition = curve_value / ANIMATION_DURATION * 100;
             particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
         }
+    }
+    if (value > value_merge && value <= value_bias) {
+        // Bias stage
+
+        vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
+        scale *= 1.01f;
+        for(int i = 0; i < particles.size(); i++) {
+            particles[i]->moveTo(curves[i].eval(1), renderer, 1.0, scale, 1.0); 
+        }
+        value = (value - value_merge) * bias_time;
+        float weighted_scale = value * (result_value + bias) + (1 - value) * result_value;
+        dst->setScale(std::abs(weighted_scale));
     }
 }
 
