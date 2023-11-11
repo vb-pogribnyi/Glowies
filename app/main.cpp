@@ -150,8 +150,8 @@ int main(int argc, char** argv)
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
   Data data(renderer, "data.npy", vec3(0, 0, 0));
-  Filter f(renderer, "weights.npy");
-  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f.width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f.height - 1) / 2));
+  Filter* f = new Filter(renderer, "weights.npy");
+  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f->width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f->height - 1) / 2));
 
   auto start = std::chrono::system_clock::now();
 
@@ -183,15 +183,16 @@ int main(int argc, char** argv)
   float time = min_time;
   int filter_x = 0, filter_y = 0;
 
-  int out_x = filter_x - f.width / 2 + 1;
-  int out_y = filter_y - f.height / 2 + 1;
+  int out_x = filter_x - f->width / 2 + 1;
+  int out_y = filter_y - f->height / 2 + 1;
   FilterProps filterProps = {
     .prts_per_size = 100,
-    .src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1),
+    .src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1),
     .dst = data_out.getRange(out_x, out_x, out_y, out_y)[0]
   };
   data_out.hide();
-  f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
+  data.show();
+  f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
@@ -210,19 +211,19 @@ int main(int argc, char** argv)
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
       if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
-        f.setStage(time);
+        f->setStage(time);
         renderer.resetFrame();
       }
-      if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f.width) ||
-            ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f.height)) {
-        filterProps.src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1);
+      if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
+            ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
+        filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
-        int out_x = filter_x - f.width / 2 + 1;
-        int out_y = filter_y - f.height / 2 + 1;
+        int out_x = filter_x - f->width / 2 + 1;
+        int out_y = filter_y - f->height / 2 + 1;
         filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
-        f.init(filterProps, TIME_OFFSET);
+        f->init(filterProps, TIME_OFFSET);
         time = min_time;
-        f.setStage(time);
+        f->setStage(time);
         renderer.resetFrame();
       }
       if (ImGui::Button("Save image")) {
@@ -244,7 +245,7 @@ int main(int argc, char** argv)
           img_name.insert(img_name.begin(), 5 - img_name.size(), '0');
           renderer.saveImage("images/" + img_name + ".png");
           std::cout << img_name << std::endl;
-          f.setStage(time);
+          f->setStage(time);
           renderer.resetFrame();
         }
       } else {
@@ -308,6 +309,8 @@ int main(int argc, char** argv)
 
   // Cleanup
   vkDeviceWaitIdle(renderer.getDevice());
+
+  delete f;
 
   renderer.destroyResources();
   renderer.destroy();

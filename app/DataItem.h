@@ -42,7 +42,14 @@ public:
     Renderer& renderer;
     vec3 position;
     mat4 transform;
-    int idx_main;
+    mat4 transform_pos;
+    mat4 transform_neg;
+
+    // Indices of the models: positive, negative, (construction) positive&negative, reference (glass)
+    int idx_pos;
+    int idx_neg;
+    int idx_pos_constr;
+    int idx_neg_constr;
     int idx_ref;
     DIProperties props;
 
@@ -107,8 +114,7 @@ public:
     std::vector<vec3> weights_positions;
     std::vector<std::pair<float, float>> weights_scales_old;
     std::vector<vec3> weights_positions_old;
-    std::vector<DataItem> weights_pos;
-    std::vector<DataItem> weights_neg;
+    std::vector<DataItem> weights_di;
     float prt_w, prt_h;
 
     Filter(Renderer& renderer, std::string weightsPath);

@@ -5,18 +5,21 @@ float Particle::shell_scale = 0.03;
 
 DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     uint32_t instance_id = 0;
-    if (props.scale > 0) {
-        if (props.is_construction) instance_id = indices.cube_pos_prt_idx;
-        else instance_id = indices.cube_pos_idx;
-    } else {
-        if (props.is_construction) instance_id = indices.cube_neg_prt_idx;
-        else instance_id = indices.cube_neg_idx;
-    }
     transform = nvmath::translation_mat4(nvmath::vec3f(props.position.x, props.position.y + 0.5, props.position.z)) * 
-                    nvmath::scale_mat4(nvmath::vec3f(props.scale, 1, props.scale));
-    renderer.m_instances.push_back({transform, instance_id, 0});
-    idx_main = renderer.m_instances.size() - 1;
+                    nvmath::scale_mat4(nvmath::vec3f(1, 1, 1));
+    renderer.m_instances.push_back({transform, indices.cube_pos_idx, 0});
+    idx_pos = renderer.m_instances.size() - 1;
+    renderer.m_instances.push_back({transform, indices.cube_neg_idx, 0});
+    idx_neg = renderer.m_instances.size() - 1;
     idx_ref = -1;
+    idx_pos_constr = -1;
+    idx_neg_constr = -1;
+    if (props.is_construction) {
+        renderer.m_instances.push_back({transform, indices.cube_pos_prt_idx, 0});
+        idx_pos_constr = renderer.m_instances.size() - 1;
+        renderer.m_instances.push_back({transform, indices.cube_neg_prt_idx, 0});
+        idx_neg_constr = renderer.m_instances.size() - 1;
+    }
     if (props.is_has_reference) {
         renderer.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(props.position.x, props.position.y + 0.4, props.position.z)) * 
                         nvmath::scale_mat4(nvmath::vec3f(1.0f, 0.8f, 1.0f)), indices.glass_idx, 0});
@@ -29,11 +32,35 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     if (nvmath::length(position) > MAX_POSITION) {
         throw std::runtime_error("Position too large");
     }
+    float scale_pos = 0;
+    float scale_neg = 0;
+    if (props.scale > 0) scale_pos = props.scale;
+    else scale_neg = -props.scale;
+
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(props.scale, 1, props.scale));
-    renderer.m_instances[idx_main].transform = transform;
-    renderer.m_tlas[idx_main].transform = nvvk::toTransformMatrixKHR(transform);
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), 1, std::abs(props.scale)));
+    transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, 1, scale_pos));
+    transform_neg = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, 1, scale_neg));
+    if (props.is_construction) {
+        renderer.m_instances[idx_pos_constr].transform = transform_pos;
+        renderer.m_tlas[idx_pos_constr].transform = nvvk::toTransformMatrixKHR(transform_pos);
+        renderer.m_instances[idx_neg_constr].transform = transform_neg;
+        renderer.m_tlas[idx_neg_constr].transform = nvvk::toTransformMatrixKHR(transform_neg);
+
+
+        is_hidden = true;
+        transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
+            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, 1, scale_pos));
+        transform_neg = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
+            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, 1, scale_neg));
+    }
+    renderer.m_instances[idx_pos].transform = transform_pos;
+    renderer.m_tlas[idx_pos].transform = nvvk::toTransformMatrixKHR(transform_pos);
+    renderer.m_instances[idx_neg].transform = transform_neg;
+    renderer.m_tlas[idx_neg].transform = nvvk::toTransformMatrixKHR(transform_neg);
     if (props.is_has_reference) {
         renderer.m_instances[idx_ref].transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.4, position.z)) * 
             nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(props.scale_ref, 0.8f, props.scale_ref));
@@ -97,7 +124,7 @@ void DataItem::hide() {
 }
 
 void DataItem::show() {
-    moveTo(props.position);
+    setScale(props.scale, props.scale_ref);
 }
 
 Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
@@ -201,11 +228,8 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
             .scale = 1.0f,
             .scale_ref = 1.0f
         };
-        DataItem di_pos(renderer, props, renderer.indices);
-        weights_pos.push_back(di_pos);
-        props.scale = -1.0f;
-        DataItem di_neg(renderer, props, renderer.indices);
-        weights_neg.push_back(di_neg);
+        DataItem di(renderer, props, renderer.indices);
+        weights_di.push_back(di);
         idx++;
     }
 
@@ -215,9 +239,7 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
         .position = vec3(0, LAYER_HEIGHT, 0),
         .scale = (float)1.0
     };
-    dst_pos = new DataItem(renderer, props, renderer.indices);
-    props.scale = -1.0;
-    dst_neg = new DataItem(renderer, props, renderer.indices);
+    dst = new DataItem(renderer, props, renderer.indices);
 }
 
 Filter::~Filter()
@@ -226,8 +248,7 @@ Filter::~Filter()
     for (Particle* p : particles) {
         delete p;
     }
-    delete dst_pos;
-    delete dst_neg;
+    delete dst;
 }
 
 void Filter::init(FilterProps props, float time_offset) {
@@ -244,8 +265,7 @@ void Filter::init(FilterProps props, float time_offset) {
     di_curves_mid.clear();
     di_curves_end.clear();
     movement_offsets.clear();
-    dst_pos->setScale(0);
-    dst_neg->setScale(0);
+    dst->hide();
     if (props.src.size() != weights.size()) {
         throw std::runtime_error("Data slice and filter sizes does not match");
     }
@@ -278,31 +298,18 @@ void Filter::init(FilterProps props, float time_offset) {
         weights_positions[i] = target_pos;
         // TODO: Sets, then resets item scale and position. Make a change so that it happens only once.
 
-        weights_pos[i].moveTo(target_pos);
-        weights_neg[i].moveTo(target_pos);
+        weights_di[i].moveTo(target_pos);
+        weights_di[i].setScale(applied_value, target_scale);
+        for (vec3 prt : weights_di[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
+            if (applied_value > 0) {
+                particles_pos.push_back((vec3)(weights_di[i].transform * vec4(prt, 1)));
+            } else {
+                particles_neg.push_back((vec3)(weights_di[i].transform * vec4(prt, 1)));
+            }
+        }
 
-        if (applied_value > 0) {
-            weights_pos[i].setScale(std::abs(applied_value), target_scale);
-            weights_neg[i].setScale(0);
-            for (vec3 prt : weights_pos[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
-                particles_pos.push_back((vec3)(weights_pos[i].transform * vec4(prt, 1)));
-            }
-        } else {
-            weights_neg[i].setScale(std::abs(applied_value), target_scale);
-            weights_pos[i].setScale(0, 0);
-            for (vec3 prt : weights_neg[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
-                particles_neg.push_back((vec3)(weights_neg[i].transform * vec4(prt, 1)));
-            }
-        }
-        weights_pos[i].moveTo(weights_positions_old[i]);
-        weights_neg[i].moveTo(weights_positions_old[i]);
-        if (weights_scales_old[i].first > 0) {
-            weights_pos[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
-            weights_neg[i].setScale(0, 0);
-        } else {
-            weights_neg[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
-            weights_pos[i].setScale(0, 0);
-        }
+        weights_di[i].moveTo(weights_positions_old[i]);
+        weights_di[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
     }
     if (std::abs(result_value - props.dst->props.scale) > 1e-7) {
         throw std::runtime_error("Generated and given result won't match");
@@ -318,7 +325,6 @@ void Filter::init(FilterProps props, float time_offset) {
         particles_constructing = &(particles_neg[particles_neg.size() - n_constr_particles]);
     }
 
-    dst = result_value > 0 ? dst_pos : dst_neg;
     dst->setScale(result_value);
     dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()));
 
@@ -415,35 +421,21 @@ void Filter::setStage(float value) {
             std::pair<float, float> scale = weights_scales_old[i];
             float weighted_scale = (1 - value_inner) * scale.first + value_inner * weights[i];
             float weighted_target_scale = (1 - value_inner) * scale.second + value_inner * 1.0;
-            if (weighted_scale > 0) {
-                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
-                weights_neg[i].setScale(0);
-            } else {
-                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
-                weights_pos[i].setScale(0);
-            }
+            weights_di[i].setScale(weighted_scale, std::abs(weighted_target_scale) + 0.001);
         } else if (value_inner > value_unscale && value_inner <= value_move) {
             // Move stage
             value_inner = (value_inner - value_unscale) * move_time;
             vec3 position = get_di_movement_pos(di_curves_start[i], di_curves_mid[i], di_curves_end[i], value_inner / move_time);
-            weights_pos[i].moveTo(position);
-            weights_neg[i].moveTo(position);
+            weights_di[i].moveTo(position);
         } else if (value_inner > value_move && value_inner <= value_scale) {
             // Scale stage
             value_inner = (value_inner - value_move) * scale_time;
-            weights_pos[i].moveTo(weights_positions[i]);
-            weights_neg[i].moveTo(weights_positions[i]);
+            weights_di[i].moveTo(weights_positions[i]);
             std::pair<float, float> scale = weights_scales[i];
             std::pair<float, float> scale_old = {weights[i], 1.0};
             float weighted_scale = value_inner * scale.first + (1 - value_inner) * scale_old.first;
             float weighted_target_scale = value_inner * scale.second + (1 - value_inner) * scale_old.second;
-            if (weighted_scale > 0) {
-                weights_pos[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
-                weights_neg[i].setScale(0);
-            } else {
-                weights_neg[i].setScale(std::abs(weighted_scale), std::abs(weighted_target_scale) + 0.001);
-                weights_pos[i].setScale(0);
-            }
+            weights_di[i].setScale(weighted_scale, std::abs(weighted_target_scale) + 0.001);
         }
     }
     if (value > value_scale && value <= value_merge) {
@@ -460,7 +452,6 @@ void Filter::setStage(float value) {
     }
     if (value > value_merge && value <= value_bias) {
         // Bias stage
-
         vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
         scale *= 1.01f;
         for(int i = 0; i < particles.size(); i++) {
