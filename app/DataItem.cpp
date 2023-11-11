@@ -26,6 +26,9 @@ DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &i
 }
 
 void DataItem::moveTo(vec3 position, bool is_hidden) {
+    if (nvmath::length(position) > MAX_POSITION) {
+        throw std::runtime_error("Position too large");
+    }
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
          nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(props.scale, 1, props.scale));
@@ -130,6 +133,9 @@ void Particle::hide()
 }
 
 void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale, float show_transition) {
+    if (nvmath::length(position) > MAX_POSITION) {
+        throw std::runtime_error("Position too large");
+    }
     if (filler_transition < 0) filler_transition = 0;
     if (filler_transition > 1) filler_transition = 1;
     if (show_transition < 0) show_transition = 0;
@@ -254,6 +260,7 @@ void Filter::init(FilterProps props, float time_offset) {
     float result_z = 0;
     for (int i = 0; i < props.src.size(); i++) {
         float applied_value = props.src[i]->props.scale * weights[i];
+        std::cout << props.src[i]->props.scale << ' ' << weights[i] << std::endl;
         result_value += applied_value;
         vec3 target_pos = props.src[i]->props.position;
 
@@ -297,6 +304,9 @@ void Filter::init(FilterProps props, float time_offset) {
             weights_pos[i].setScale(0, 0);
         }
     }
+    if (std::abs(result_value - props.dst->props.scale) > 1e-7) {
+        throw std::runtime_error("Generated and given result won't match");
+    }
     particles.reserve(particles_pos.size() + particles_neg.size());
     if (particles_pos.size() > particles_neg.size()) {
         n_constr_particles = particles_pos.size() - particles_neg.size();
@@ -305,7 +315,7 @@ void Filter::init(FilterProps props, float time_offset) {
     } else {
         n_constr_particles = particles_neg.size() - particles_pos.size();
         n_mrg_particles = particles_pos.size();
-        particles_constructing = &(particles_neg[particles_pos.size() - n_constr_particles]);
+        particles_constructing = &(particles_neg[particles_neg.size() - n_constr_particles]);
     }
 
     dst = result_value > 0 ? dst_pos : dst_neg;
@@ -319,6 +329,9 @@ void Filter::init(FilterProps props, float time_offset) {
     for (vec3& startpos : prts_start) {
         startpos = particles_constructing[i];
         i++;
+        if (nvmath::length(startpos) > MAX_POSITION) {
+            throw std::runtime_error("Position too large");
+        }
     }
 
     for (int i = 0; i < prts_end.size(); i++) {
@@ -506,11 +519,11 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset) {
   height = d.shape[1];
   int idx = 0;
   for (double value : d.data) {
-    float pos_x = idx / d.shape[0];
+    float pos_x = idx / d.shape[1];
     float pos_y = idx % d.shape[1];
     pos_x *= SPACING;
     pos_y *= SPACING;
-    
+
     DIProperties props = {
         .is_has_reference = false,
         .is_construction = false,
@@ -534,8 +547,8 @@ std::vector<DataItem*> Data::getRange(int x1, int x2, int y1, int y2) {
     std::vector<DataItem*> result;
     result.reserve((x2 - x1) * (y2 - y1));
     for (int i = 0; i < items.size(); i++) {
-        int x = i % width;
-        int y = i / width;
+        int y = i % height;
+        int x = i / height;
         if (x >= x1 && x <= x2 && y >= y1 && y <= y2) result.push_back(&items[i]);
     }
 

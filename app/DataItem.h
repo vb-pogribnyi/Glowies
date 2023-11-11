@@ -9,6 +9,7 @@
 #define SPACING 1.2
 #define MERGE_HEIGHT 3.0
 #define LAYER_HEIGHT 4.0
+#define MAX_POSITION 100
 
 // Time constraints
 #define CONSTRUCTION_DELAY 1.5

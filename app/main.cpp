@@ -150,8 +150,8 @@ int main(int argc, char** argv)
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
   Data data(renderer, "data.npy", vec3(0, 0, 0));
-  Data data_out(renderer, "output.npy", vec3(SPACING, LAYER_HEIGHT, SPACING));
   Filter f(renderer, "weights.npy");
+  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f.width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f.height - 1) / 2));
 
   auto start = std::chrono::system_clock::now();
 
@@ -183,10 +183,12 @@ int main(int argc, char** argv)
   float time = min_time;
   int filter_x = 0, filter_y = 0;
 
+  int out_x = filter_x - f.width / 2 + 1;
+  int out_y = filter_y - f.height / 2 + 1;
   FilterProps filterProps = {
     .prts_per_size = 100,
     .src = data.getRange(filter_x, filter_x + f.width - 1, filter_y, filter_y + f.height - 1),
-    .dst = 0
+    .dst = data_out.getRange(out_x, out_x, out_y, out_y)[0]
   };
   data_out.hide();
   f.init(filterProps, TIME_OFFSET); // This function needs TLAS to be built

@@ -148,7 +148,7 @@ void Renderer::loadModels(uint32_t nParticles) {
 
 ParticleIdxs Renderer::getParticle(bool is_positive) {
   ParticleIdxs result;
-  std::cout << "Retrieving particle " << particles_pos_free.size() << std::endl;
+  // std::cout << "Retrieving particle " << particles_pos_free.size() << ' ' << particles_neg_free.size() << std::endl;
   if (is_positive) {
     if (particles_pos_free.size() == 0) throw std::runtime_error("Positive particles over-allocation");
     result = particles_pos_free.front();
@@ -158,7 +158,8 @@ ParticleIdxs Renderer::getParticle(bool is_positive) {
     result = particles_neg_free.front();
     particles_neg_free.pop_front();
   }
-  std::cout << "Positive particles left: " << particles_pos_free.size() << std::endl;
+  // std::cout << "Positive particles left: " << particles_pos_free.size() << ' ' << particles_neg_free.size() << std::endl;
+  // std::cout << result.filler << ' ' << result.particle_neutral << ' ' << result.particle_signed << ' '  << result.shell << ' '  << std::endl;
 
   return result;
 }
