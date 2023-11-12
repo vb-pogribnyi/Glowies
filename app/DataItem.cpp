@@ -420,6 +420,7 @@ void Filter::setStage(float value) {
     float value_scale       = 3;
     float value_merge       = 4;
     float value_bias        = 5;
+    float max_value = value_scale;
 
     // Reset particles, so they don't hand around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
@@ -428,7 +429,8 @@ void Filter::setStage(float value) {
 
     if (di_curves_start.size() == 0) init_di_curves();
     for (int i = 0; i < weights.size(); i++) {
-        float value_inner = value + di_curves_start[i].time_offset;
+        float value_inner = (value - TIME_OFFSET_DI_MOVEMENT / 2) + di_curves_start[i].time_offset;
+        value_inner = value_inner / max_value * (max_value + TIME_OFFSET_DI_MOVEMENT);
         value_inner = std::max(value_inner, 0.0f);
         value_inner = std::min(value_inner, value_scale);
         if (value_inner >= 0 && value_inner <= value_unscale) {
@@ -438,6 +440,7 @@ void Filter::setStage(float value) {
             float weighted_scale = (1 - value_inner) * scale.first + value_inner * weights[i];
             float weighted_target_scale = (1 - value_inner) * scale.second + value_inner * 1.0;
             weights_di[i].setScale(weighted_scale, std::abs(weighted_target_scale) + 0.001);
+            // std::cout << "SCALE " << i << ' ' << weighted_scale << ' ' << std::abs(weighted_target_scale) + 0.001 << std::endl;
         } else if (value_inner > value_unscale && value_inner <= value_move) {
             // Move stage
             value_inner = (value_inner - value_unscale) * move_time;
