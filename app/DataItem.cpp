@@ -5,6 +5,7 @@ float Particle::shell_scale = 0.03;
 
 DataItem::DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     uint32_t instance_id = 0;
+    is_static = false;
     transform = nvmath::translation_mat4(nvmath::vec3f(props.position.x, props.position.y + 0.5, props.position.z)) * 
                     nvmath::scale_mat4(nvmath::vec3f(1, 1, 1));
     renderer.m_instances.push_back({transform, indices.cube_pos_idx, 0});
@@ -51,7 +52,7 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
         renderer.m_tlas[idx_neg_constr].transform = nvvk::toTransformMatrixKHR(transform_neg);
 
 
-        is_hidden = true;
+        if (!is_static) is_hidden = true;
         transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
             nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, 1, scale_pos));
         transform_neg = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
@@ -125,6 +126,18 @@ void DataItem::hide() {
 
 void DataItem::show() {
     setScale(props.scale, props.scale_ref);
+}
+
+void DataItem::showStatic() {
+    if (!props.is_construction) return;
+    is_static = true;
+    moveTo(props.position);
+}
+
+void DataItem::hideStatic() {
+    if (!props.is_construction) return;
+    is_static = false;
+    moveTo(props.position);
 }
 
 Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
@@ -203,21 +216,24 @@ vec3 BCurve::eval(float t) const {
 }
 
 Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
-    npy::npy_data d = npy::read_npy<double>(weightsPath);
-    width = d.shape[0];
-    height = d.shape[1];
+    npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
+    bias = bias_np.data[0];
+
+    npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
+    width = weights_np.shape[0];
+    height = weights_np.shape[1];
     props.dst = 0;
 
     int idx = 0;
     DIProperties props;
-    for (double value : d.data) {
+    for (double value : weights_np.data) {
         weights.push_back(value);
         weights_scales.push_back({value, 1});
         weights_positions.push_back(vec3(0, 0, 0));
         weights_scales_old.push_back({value, 1});
         weights_positions_old.push_back(vec3(0, 0, 0));
-        float pos_x = idx / d.shape[0];
-        float pos_y = idx % d.shape[1];
+        float pos_x = idx / weights_np.shape[0];
+        float pos_y = idx % weights_np.shape[1];
         pos_x *= SPACING;
         pos_y *= SPACING;
 
@@ -311,7 +327,7 @@ void Filter::init(FilterProps props, float time_offset) {
         weights_di[i].moveTo(weights_positions_old[i]);
         weights_di[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
     }
-    if (std::abs(result_value - props.dst->props.scale) > 1e-7) {
+    if (std::abs(result_value + bias - props.dst->props.scale) > 1e-7) {
         throw std::runtime_error("Generated and given result won't match");
     }
     particles.reserve(particles_pos.size() + particles_neg.size());
@@ -451,15 +467,12 @@ void Filter::setStage(float value) {
         }
     }
     if (value > value_merge && value <= value_bias) {
-        // Bias stage
-        vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
-        scale *= 1.01f;
-        for(int i = 0; i < particles.size(); i++) {
-            particles[i]->moveTo(curves[i].eval(1), renderer, 1.0, scale, 1.0); 
-        }
         value = (value - value_merge) * bias_time;
         float weighted_scale = value * (result_value + bias) + (1 - value) * result_value;
-        dst->setScale(std::abs(weighted_scale));
+        dst->setScale(weighted_scale);
+        dst->showStatic();
+    } else {
+        dst->hideStatic();
     }
 }
 

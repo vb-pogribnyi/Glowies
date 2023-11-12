@@ -51,6 +51,8 @@ public:
     int idx_pos_constr;
     int idx_neg_constr;
     int idx_ref;
+
+    bool is_static;
     DIProperties props;
 
     DataItem(Renderer &renderer, DIProperties props, const ModelIndices &indices);
@@ -59,6 +61,8 @@ public:
     void setScale(float scale, float scale_ref = 0.0f);
     void hide();
     void show();
+    void showStatic();
+    void hideStatic();
 };
 
 class Particle {
@@ -109,7 +113,7 @@ public:
     float result_value;
     int width, height;
     std::vector<double> weights;
-    double bias = 0.2;
+    double bias = 0.0;
     std::vector<std::pair<float, float>> weights_scales;
     std::vector<vec3> weights_positions;
     std::vector<std::pair<float, float>> weights_scales_old;
