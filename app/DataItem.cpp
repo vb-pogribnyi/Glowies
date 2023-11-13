@@ -232,7 +232,7 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
         weights_positions.push_back(vec3(0, 0, 0));
         weights_scales_old.push_back({value, 1});
         weights_positions_old.push_back(vec3(0, 0, 0));
-        float pos_x = idx / weights_np.shape[0];
+        float pos_x = idx / weights_np.shape[1];
         float pos_y = idx % weights_np.shape[1];
         pos_x *= SPACING;
         pos_y *= SPACING;
@@ -268,6 +268,7 @@ Filter::~Filter()
 }
 
 void Filter::init(FilterProps props, float time_offset) {
+    this->time_offset = time_offset;
     if (this->props.dst) this->props.dst->show();
     this->props = props;
     if (this->props.dst) this->props.dst->hide();
@@ -286,10 +287,6 @@ void Filter::init(FilterProps props, float time_offset) {
         throw std::runtime_error("Data slice and filter sizes does not match");
     }
 
-    std::vector<vec3> particles_pos;
-    std::vector<vec3> particles_neg;
-    vec3 *particles_constructing;
-    int n_mrg_particles, n_constr_particles;
     result_value = 0;
     float result_x = 0;
     float result_y = 0;
@@ -312,24 +309,39 @@ void Filter::init(FilterProps props, float time_offset) {
         weights_positions_old[i] = weights_positions[i];
         weights_scales[i] = {applied_value, target_scale};
         weights_positions[i] = target_pos;
-        // TODO: Sets, then resets item scale and position. Make a change so that it happens only once.
-
-        weights_di[i].moveTo(target_pos);
-        weights_di[i].setScale(applied_value, target_scale);
-        for (vec3 prt : weights_di[i].split(props.prts_per_size * std::abs(applied_value), prt_w, prt_h)) {
-            if (applied_value > 0) {
-                particles_pos.push_back((vec3)(weights_di[i].transform * vec4(prt, 1)));
-            } else {
-                particles_neg.push_back((vec3)(weights_di[i].transform * vec4(prt, 1)));
-            }
-        }
 
         weights_di[i].moveTo(weights_positions_old[i]);
-        weights_di[i].setScale(std::abs(weights_scales_old[i].first), std::abs(weights_scales_old[i].second) + 0.001);
+        weights_di[i].setScale(weights_scales_old[i].first, std::abs(weights_scales_old[i].second) + 0.001);
+
     }
     if (std::abs(result_value + bias - props.dst->props.scale) > 1e-7) {
         throw std::runtime_error("Generated and given result won't match");
     }
+
+    dst->setScale(result_value);
+    dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()));
+}
+
+void Filter::init_prt_curves() {
+    std::vector<vec3> particles_pos;
+    std::vector<vec3> particles_neg;
+    vec3 *particles_constructing;
+    int n_mrg_particles, n_constr_particles;
+    int i = 0;
+
+    // Split the filter's weights into particles
+    for (DataItem &weight_di : weights_di) {
+        for (vec3 prt : weight_di.split(props.prts_per_size * std::abs(weights_scales[i].first), prt_w, prt_h)) {
+            if (weights_scales[i].first > 0) {
+                particles_pos.push_back((vec3)(weight_di.transform * vec4(prt, 1)));
+            } else {
+                particles_neg.push_back((vec3)(weight_di.transform * vec4(prt, 1)));
+            }
+        }
+        i++;
+    }
+    
+    // Separate the particles into constructing and merging
     particles.reserve(particles_pos.size() + particles_neg.size());
     if (particles_pos.size() > particles_neg.size()) {
         n_constr_particles = particles_pos.size() - particles_neg.size();
@@ -341,42 +353,32 @@ void Filter::init(FilterProps props, float time_offset) {
         particles_constructing = &(particles_neg[particles_neg.size() - n_constr_particles]);
     }
 
-    dst->setScale(result_value);
-    dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()));
-
-    // Constructing particles
+    // Set up movement of the constructing particles
     std::vector<vec3> prts_end = dst->split(n_constr_particles, prt_w, prt_h);
-    std::vector<vec3> prts_start(prts_end.size());
-    int i = 0;
-    for (vec3& startpos : prts_start) {
-        startpos = particles_constructing[i];
-        i++;
-        if (nvmath::length(startpos) > MAX_POSITION) {
-            throw std::runtime_error("Position too large");
-        }
-    }
 
     for (int i = 0; i < prts_end.size(); i++) {
+        if (nvmath::length(particles_constructing[i]) > MAX_POSITION) {
+            throw std::runtime_error("Position too large");
+        }
+
         BCurve curve;
         // Duration -0.5 : 1.5 + CONSTRUCTION_DELAY
         curve.time_offset = ((float)(rand() % 100) / 100 - 0.5) * time_offset + (float)i / prts_end.size() - CONSTRUCTION_DELAY;
-        curve.p1 = prts_start[i];
+        curve.p1 = particles_constructing[i];
         curve.p4 = vec3(dst->transform * vec4(prts_end[i], 1));
         curve.p3 = curve.p4 - vec3(0, 0.5, 0);
         curve.p2 = curve.p1 + vec3(0, 1.0, 0);
         curves.push_back(curve);
-    }
 
-    for (vec3 endpos : prts_start) {
         PRTProperties prtProps = {
             .is_positive = dst->props.scale > 0,
             .is_splashing = false,
-            .position = endpos
+            .position = particles_constructing[i]
         };
         particles.push_back(new Particle(renderer, prtProps, renderer.indices));
     }
 
-    // Merging particles
+    // Set up movement of the merging particles
     for (int i = 0; i < n_mrg_particles; i++) {
         vec3 start_pt1 = particles_pos[i];
         vec3 start_pt2 = particles_neg[i];
@@ -422,11 +424,12 @@ void Filter::setStage(float value) {
     float value_bias        = 5;
     float max_value = value_scale;
 
-    // Reset particles, so they don't hand around in a stage they souldn't be involved
+    // Reset particles, so they don't hang around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
         particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0);
     }
 
+    // DI scale and movement start with random offset, so kept together
     if (di_curves_start.size() == 0) init_di_curves();
     for (int i = 0; i < weights.size(); i++) {
         float value_inner = (value - TIME_OFFSET_DI_MOVEMENT / 2) + di_curves_start[i].time_offset;
@@ -440,7 +443,6 @@ void Filter::setStage(float value) {
             float weighted_scale = (1 - value_inner) * scale.first + value_inner * weights[i];
             float weighted_target_scale = (1 - value_inner) * scale.second + value_inner * 1.0;
             weights_di[i].setScale(weighted_scale, std::abs(weighted_target_scale) + 0.001);
-            // std::cout << "SCALE " << i << ' ' << weighted_scale << ' ' << std::abs(weighted_target_scale) + 0.001 << std::endl;
         } else if (value_inner > value_unscale && value_inner <= value_move) {
             // Move stage
             value_inner = (value_inner - value_unscale) * move_time;
@@ -457,11 +459,16 @@ void Filter::setStage(float value) {
             weights_di[i].setScale(weighted_scale, std::abs(weighted_target_scale) + 0.001);
         }
     }
+
+    // Particles movement
     if (value > value_scale && value <= value_merge) {
+        if (curves.size() == 0) init_prt_curves();
+
         value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
         for(int i = 0; i < particles.size(); i++) {
             float curve_value = value + curves[i].time_offset;
             float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
+            // Only width should be scaled. DI height always remains 1.0
             vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
             // Add scale offset. If the filler and DI overlap, weird things happen.
             scale *= 1.01f;
@@ -469,6 +476,8 @@ void Filter::setStage(float value) {
             particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
         }
     }
+
+    // Showing static part when the construction is complete; showing bias
     if (value > value_merge && value <= value_bias) {
         value = (value - value_merge) * bias_time;
         float weighted_scale = value * (result_value + bias) + (1 - value) * result_value;

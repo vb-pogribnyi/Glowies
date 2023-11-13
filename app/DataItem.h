@@ -120,11 +120,13 @@ public:
     std::vector<vec3> weights_positions_old;
     std::vector<DataItem> weights_di;
     float prt_w, prt_h;
+    float time_offset = 0.0;
 
     Filter(Renderer& renderer, std::string weightsPath);
     ~Filter();
     void init(FilterProps props, float time_offset);
     void init_di_curves();
+    void init_prt_curves();
     vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
 
     // The transition stage would vary between 0 and 1
