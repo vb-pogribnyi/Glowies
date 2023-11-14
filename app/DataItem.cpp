@@ -37,6 +37,8 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     float scale_neg = 0;
     if (props.scale > 0) scale_pos = props.scale;
     else scale_neg = -props.scale;
+    mat4 transform_pos;
+    mat4 transform_neg;
 
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
@@ -142,7 +144,7 @@ void DataItem::hideStatic() {
 
 Particle::Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices) : props(props), renderer(renderer) {
     idxs = renderer.getParticle(props.is_positive);
-    moveTo(props.position, renderer, 0, vec3(0.0f), 0.0);
+    moveTo(props.position, 0, vec3(0.0f), 0.0);
 }
 
 Particle::~Particle()
@@ -172,7 +174,7 @@ void Particle::hide()
         renderer.m_instances[idxs.filler].transform);
 }
 
-void Particle::moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale, float show_transition) {
+void Particle::moveTo(vec3 position, float filler_transition, vec3 filler_scale, float show_transition) {
     if (nvmath::length(position) > MAX_POSITION) {
         throw std::runtime_error("Position too large");
     }
@@ -426,7 +428,7 @@ void Filter::setStage(float value) {
 
     // Reset particles, so they don't hang around in a stage they souldn't be involved
     for(int i = 0; i < particles.size(); i++) {
-        particles[i]->moveTo(curves[i].eval(0), renderer, 0.0, vec3(0.0f), 0.0);
+        particles[i]->moveTo(curves[i].eval(0), 0.0, vec3(0.0f), 0.0);
     }
 
     // DI scale and movement start with random offset, so kept together
@@ -473,7 +475,7 @@ void Filter::setStage(float value) {
             // Add scale offset. If the filler and DI overlap, weird things happen.
             scale *= 1.01f;
             float show_transition = curve_value / ANIMATION_DURATION * 100;
-            particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), renderer, stage, scale, show_transition); 
+            particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), stage, scale, show_transition); 
         }
     }
 

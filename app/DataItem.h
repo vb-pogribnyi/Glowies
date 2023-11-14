@@ -42,8 +42,6 @@ public:
     Renderer& renderer;
     vec3 position;
     mat4 transform;
-    mat4 transform_pos;
-    mat4 transform_neg;
 
     // Indices of the models: positive, negative, (construction) positive&negative, reference (glass)
     int idx_pos;
@@ -77,7 +75,7 @@ public:
     Particle(Renderer &renderer, PRTProperties props, const ModelIndices &indices);
     ~Particle();
     void hide();
-    void moveTo(vec3 position, Renderer &renderer, float filler_transition, vec3 filler_scale, float show_transition = 1.0);
+    void moveTo(vec3 position, float filler_transition, vec3 filler_scale, float show_transition = 1.0);
 };
 
 
@@ -85,7 +83,7 @@ struct FilterProps {
     float prts_per_size;        // Number of particles per size unit
     DataItem *result;
     std::vector<DataItem*> src;
-    DataItem* dst;
+    DataItem* dst;              // Static DataItem, part of Data
 };
 
 struct BCurve {
@@ -107,9 +105,7 @@ public:
     std::vector<BCurve> di_curves_mid;
     std::vector<BCurve> di_curves_end;
     std::vector<float> movement_offsets;
-    DataItem* dst_pos;
-    DataItem* dst_neg;
-    DataItem* dst;
+    DataItem* dst;              // Construction DataItem, part of Filter
     float result_value;
     int width, height;
     std::vector<double> weights;
@@ -129,7 +125,7 @@ public:
     void init_prt_curves();
     vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
 
-    // The transition stage would vary between 0 and 1
+    // The transition stage would vary between 0 and 5
     void setStage(float value);
 };
 
