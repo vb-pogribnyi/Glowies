@@ -295,7 +295,7 @@ void Filter::init(FilterProps props, float time_offset) {
     float result_z = 0;
     for (int i = 0; i < props.src.size(); i++) {
         float applied_value = props.src[i]->props.scale * weights[i];
-        std::cout << props.src[i]->props.scale << ' ' << weights[i] << std::endl;
+        // std::cout << props.src[i]->props.scale << ' ' << weights[i] << std::endl;
         result_value += applied_value;
         vec3 target_pos = props.src[i]->props.position;
 
