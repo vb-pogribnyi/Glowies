@@ -25,6 +25,7 @@
 #include "nvvk/vulkanhppsupport.hpp"
 
 #include "stb_image_write.h"
+#include "vraf.h"
 
 
 
@@ -173,8 +174,8 @@ int main(int argc, char** argv)
   renderer.createPostPipeline();
   renderer.updatePostDescriptorSet();
   nvmath::vec4f clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = false;
 
+  bool          useRaytracer = false;
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
@@ -182,6 +183,13 @@ int main(int argc, char** argv)
   const float min_time = 0;
   float time = min_time;
   int filter_x = 0, filter_y = 0;
+  float filter_x_f = filter_x, filter_y_f = filter_y;
+
+  VRaF::Sequencer sequencer;
+  sequencer.track("Animation time", &time, [&]() {
+      f->setStage(time);
+      renderer.resetFrame();
+  });
 
   int out_x = filter_x - f->width / 2 + 1;
   int out_y = filter_y - f->height / 2 + 1;
@@ -193,6 +201,25 @@ int main(int argc, char** argv)
   data_out.hide();
   data.show();
   f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
+
+
+  auto updateConvLocation = [&]() {
+    if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
+      filter_x = (int)filter_x_f;
+      filter_y = (int)filter_y_f;
+
+      std::cout << filter_x << ' ' << filter_y << std::endl;
+
+      filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
+
+      int out_x = filter_x - f->width / 2 + 1;
+      int out_y = filter_y - f->height / 2 + 1;
+      filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
+      f->init(filterProps, TIME_OFFSET);
+    }
+  };
+  sequencer.track("X", &filter_x_f, updateConvLocation);
+  sequencer.track("Y", &filter_y_f, updateConvLocation);
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
@@ -216,6 +243,8 @@ int main(int argc, char** argv)
       }
       if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
             ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
+        filter_x_f = filter_x;
+        filter_y_f = filter_y;
         filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
         int out_x = filter_x - f->width / 2 + 1;
@@ -234,6 +263,11 @@ int main(int argc, char** argv)
       renderUI(renderer);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Panel::End();
+
+      ImGui::Begin("Sequencer", 0, 16);
+      sequencer.draw();
+      ImGui::End();
+      sequencer.update((float)glfwGetTime());
     }
 
     if (is_recording) {
