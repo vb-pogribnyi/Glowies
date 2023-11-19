@@ -3,8 +3,10 @@
 
 #include <vector>
 #include <string>
+#include <fstream>
 #include "nvmath/nvmath.h"
 #include "../imgui/imgui.h"
+#include "json.hpp"
 
 using vec2 = nvmath::vec2f;
 using vec3 = nvmath::vec3f;
@@ -111,6 +113,9 @@ namespace VRaF {
 		void track(std::string label, vec3* value, std::function<void()> callback);
 		void track(std::string label, vec4* value, std::function<void()> callback);
         void onFrameUpdated(std::function<void(int)> callback);
+
+		void loadFile(std::string path);
+		void saveFile(std::string path);
 
 	private:
 		SeqState state;

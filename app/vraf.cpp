@@ -872,6 +872,72 @@ namespace VRaF {
         this->callback = callback;
     }
 
+	void Sequencer::loadFile(std::string path){
+		// Loads keyframes from a file. The tracked variables
+		// must be set before calling this function and must match
+		// the ones saved in the file
+		std::ifstream fs(path);
+		if (!fs.good()) {
+			std::cout << "File " << path << " is not good!" << std::endl;
+			return;
+		}
+		nlohmann::json data = nlohmann::json::parse(fs);
+		for (auto &jtrack : data["tracks"]) {
+			Track *track = 0;
+			for (Track &t : tracks) {
+				if (jtrack["label"] == t.label) track = &t;
+			}
+			if (track == 0) {
+				std::cout << "Track with label " << jtrack["label"].get<std::string>() << " not found!" << std::endl;
+				continue;
+			}
+			if (jtrack["events"].size() != track->events.size()) {
+				std::cout << "Track with label " << jtrack["label"].get<std::string>() << " events size does not match!" << std::endl;
+				continue;
+			}
+			int i = 0;
+			for (auto &jevent : jtrack["events"]) {
+				std::cout << "Event!" << std::endl;
+				track->events[i].duration = jevent["duration"];
+				track->events[i].time = jevent["time"];
+				track->events[i].keyframes.clear();
+				for (auto &jkeyframe : jevent["keyframes"]) {
+					track->events[i].keyframes.push_back({jkeyframe["time"], jkeyframe["value"]});
+				}
+				i++;
+			}
+		}
+	}
+
+	void Sequencer::saveFile(std::string path) {
+		std::cout << "Saving: " << path << std::endl;
+		nlohmann::json jdata;
+		jdata["tracks"] = nlohmann::json::array();
+		
+		for (Track& track : tracks) {
+            nlohmann::json jtrack;
+			jtrack["label"] = track.label;
+			jtrack["events"] = nlohmann::json::array();
+			for (Event& event : track.events) {
+				nlohmann::json jevent;
+				jevent["time"] = event.time;
+				jevent["duration"] = event.duration;
+				jevent["keyframes"] = nlohmann::json::array();
+				for (std::pair<float, float> keyframe : event.keyframes) {
+					nlohmann::json jkeyframe;
+					jkeyframe["time"] = keyframe.first;
+					jkeyframe["value"] = keyframe.second;
+					jevent["keyframes"].push_back(jkeyframe);
+				}
+				jtrack["events"].push_back(jevent);
+			}
+			jdata["tracks"].push_back(jtrack);
+		}
+
+		std::ofstream fs(path);
+		fs << std::setw(4) << jdata;
+	}
+
 	bool Event::update(int frame)
 	{
         bool result = false;

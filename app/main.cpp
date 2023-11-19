@@ -220,6 +220,7 @@ int main(int argc, char** argv)
   };
   sequencer.track("X", &filter_x_f, updateConvLocation);
   sequencer.track("Y", &filter_y_f, updateConvLocation);
+  sequencer.loadFile("sequences.json");
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
@@ -259,6 +260,7 @@ int main(int argc, char** argv)
         renderer.saveImage("result.png");
       }
       if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
+      if (ImGui::Button("Save sequence")) sequencer.saveFile("sequences.json");
 
       renderUI(renderer);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
