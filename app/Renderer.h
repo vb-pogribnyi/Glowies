@@ -44,6 +44,20 @@ struct ParticleIdxs {
   uint32_t filler;
 };
 
+class Camera {
+public:
+  // Movement direction: forward, right, up
+  int move_fw, move_rt, move_up;
+  vec3 pos;
+  vec3 tgt;
+  float fov;
+
+  Camera();
+  void move(float forward, float right, float up);
+  void rotate(float yaw, float pitch);
+  mat4 getMatrix();
+};
+
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -56,6 +70,7 @@ class Renderer : public nvvkhl::AppBaseVk
 {
 public:
   ModelIndices indices;
+  Camera camera;
   bool is_rebuild_tlas;
   std::list<ParticleIdxs> particles_pos_free;
   std::list<ParticleIdxs> particles_neg_free;
@@ -73,6 +88,8 @@ public:
   void createObjDescriptionBuffer();
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
+  void onKeyboard(int key, int /*scancode*/, int action, int mods) override;
+  void onMouseMotion(int x, int y) override;
   void destroyResources();
   void prepareFrame();
   void saveImage(const std::string& outFilename);

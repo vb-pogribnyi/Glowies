@@ -177,8 +177,8 @@ void Renderer::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   // Prepare new UBO contents on host.
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
-  const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  const auto&    view        = camera.getMatrix();
+  const auto&    proj        = nvmath::perspectiveVK(camera.fov, aspectRatio, 0.1f, 1000.0f);
   // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
@@ -409,6 +409,79 @@ void Renderer::onResize(int /*w*/, int /*h*/)
   createOffscreenRender();
   updatePostDescriptorSet();
   updateRtDescriptorSet();
+}
+
+void Renderer::onMouseMotion(int x, int y)
+{
+  nvvkhl::AppBaseVk::onMouseMotion(x, y);
+
+  static float last_x = -1, last_y = -1;
+  if(m_inputs.lmb || m_inputs.rmb || m_inputs.mmb) {
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    if (last_x > 0 && last_y > 0) {
+      camera.rotate((x - last_x) / m_size.width, -(y - last_y) / m_size.height);
+    }
+    last_x = x;
+    last_y = y;
+  } else {
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    last_x = last_y = -1;
+  }
+}
+
+void Renderer::onKeyboard(int key, int scancode, int action, int mods) {
+  nvvkhl::AppBaseVk::onKeyboard(key, scancode, action, mods);
+  // std::cout << "Key: " << key << ' ' << action << ' ' << mods << std::endl;
+  const bool pressed = action != GLFW_RELEASE;
+
+  if(pressed && key == GLFW_KEY_W) {
+    std::cout << "Move forward" << std::endl;
+    camera.move_fw = 1;
+  } else if(!pressed && key == GLFW_KEY_W) {
+    std::cout << "Stop moving forward" << std::endl;
+    camera.move_fw = 0;
+  }
+
+  if(pressed && key == GLFW_KEY_S) {
+    std::cout << "Move backward" << std::endl;
+    camera.move_fw = -1;
+  } else if(!pressed && key == GLFW_KEY_S) {
+    std::cout << "Stop moving backward" << std::endl;
+    camera.move_fw = 0;
+  }
+
+  if(pressed && key == GLFW_KEY_A) {
+    std::cout << "Move left" << std::endl;
+    camera.move_rt = 1;
+  } else if(!pressed && key == GLFW_KEY_A) {
+    std::cout << "Stop moving left" << std::endl;
+    camera.move_rt = 0;
+  }
+
+  if(pressed && key == GLFW_KEY_D) {
+    std::cout << "Move right" << std::endl;
+    camera.move_rt = -1;
+  } else if(!pressed && key == GLFW_KEY_D) {
+    std::cout << "Stop moving right" << std::endl;
+    camera.move_rt = 0;
+  }
+
+  if(pressed && key == GLFW_KEY_E) {
+    std::cout << "Move up" << std::endl;
+    camera.move_up = 1;
+  } else if(!pressed && key == GLFW_KEY_E) {
+    std::cout << "Stop moving up" << std::endl;
+    camera.move_up = 0;
+  }
+
+  if(pressed && key == GLFW_KEY_Q) {
+    std::cout << "Move down" << std::endl;
+    camera.move_up = -1;
+  } else if(!pressed && key == GLFW_KEY_Q) {
+    std::cout << "Stop moving down" << std::endl;
+    camera.move_up = 0;
+  }
 }
 
 
@@ -856,4 +929,80 @@ void Renderer::saveImage(const std::string& outFilename)
 
   // Destroy temporary buffer
   m_alloc.destroy(pixelBuffer);
+}
+
+
+Camera::Camera() {
+  pos = {0.001, 5, 0.001};
+  tgt = {0, 4, 0};
+  fov = 60;
+  move_fw = move_rt = move_up = 0;
+}
+
+void Camera::move(float forward, float right, float up) {
+  nvmath::vec3f z(pos - tgt);
+  float         length = static_cast<float>(nvmath::length(z)) / 0.785f;  // 45 degrees
+  z                    = nvmath::normalize(z);
+  nvmath::vec3f x      = nvmath::cross({0, 1, 0}, z);
+  x                    = nvmath::normalize(x);
+  nvmath::vec3f y      = nvmath::cross(z, x);
+  y                    = nvmath::normalize(y);
+  x *= -right * length;
+  y *= up * length;
+
+  pos += x + y - z * forward * length;
+  tgt += x + y - z * forward * length;
+}
+
+void Camera::rotate(float yaw, float pitch) {
+  std::cout << "Rotating: " << yaw << ' ' << pitch << std::endl;
+
+  if(yaw == 0 && pitch == 0)
+    return;
+
+  // Full width will do a full turn
+  yaw *= nv_two_pi;
+  pitch *= nv_two_pi;
+
+  // Get the camera
+  nvmath::vec3f origin(pos);
+  nvmath::vec3f position(tgt);
+
+  // Get the length of sight
+  nvmath::vec3f centerToEye(position - origin);
+  float         radius = nvmath::length(centerToEye);
+  centerToEye          = nvmath::normalize(centerToEye);
+
+  nvmath::mat4f rot_x, rot_y;
+
+  // Find the rotation around the UP axis (Y)
+  nvmath::vec3f axe_z(nvmath::normalize(centerToEye));
+  rot_y = nvmath::mat4f().as_rot(-yaw, {0, 1, 0});
+
+  // Apply the (Y) rotation to the eye-center vector
+  nvmath::vec4f vect_tmp = rot_y * nvmath::vec4f(centerToEye.x, centerToEye.y, centerToEye.z, 0);
+  centerToEye            = nvmath::vec3f(vect_tmp.x, vect_tmp.y, vect_tmp.z);
+
+  // Find the rotation around the X vector: cross between eye-center and up (X)
+  nvmath::vec3f axe_x = nvmath::cross({0, 1, 0}, axe_z);
+  axe_x               = nvmath::normalize(axe_x);
+  rot_x               = nvmath::mat4f().as_rot(-pitch, axe_x);
+
+  // Apply the (X) rotation to the eye-center vector
+  vect_tmp = rot_x * nvmath::vec4f(centerToEye.x, centerToEye.y, centerToEye.z, 0);
+  nvmath::vec3f vect_rot(vect_tmp.x, vect_tmp.y, vect_tmp.z);
+  if(vect_rot.x * centerToEye.x > 0)
+    centerToEye = vect_rot;
+
+  // Make the vector as long as it was originally
+  centerToEye *= radius;
+
+  // Finding the new position
+  nvmath::vec3f newPosition = centerToEye + origin;
+
+  tgt = newPosition;
+}
+
+mat4 Camera::getMatrix() {
+  return nvmath::look_at(pos, tgt, {0, 1, 0});
 }
