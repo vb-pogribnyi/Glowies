@@ -57,6 +57,7 @@ void renderUI(Renderer& renderer)
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
 
+
 //--------------------------------------------------------------------------------------------------
 // Application Entry
 //
@@ -231,6 +232,126 @@ int main(int argc, char** argv)
   // Main loop
   float moveSpeed = 0.3;
   float lastTime = (float)glfwGetTime();
+
+
+
+  std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
+      // Start the Dear ImGui frame
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+      // Show UI window.
+      if(showGUI)
+      {
+        ImGuiH::Panel::Begin();
+        ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
+        if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
+        if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
+          f->setStage(time);
+          renderer.resetFrame();
+        }
+        if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
+              ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
+          filter_x_f = filter_x;
+          filter_y_f = filter_y;
+          filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
+
+          int out_x = filter_x - f->width / 2 + 1;
+          int out_y = filter_y - f->height / 2 + 1;
+          filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
+          f->init(filterProps, TIME_OFFSET);
+          time = min_time;
+          f->setStage(time);
+          renderer.resetFrame();
+        }
+        if (ImGui::Button("Save image")) {
+          renderer.saveImage("result.png");
+        }
+        if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
+        if (ImGui::Button("Save sequence")) sequencer.saveFile("sequences.json");
+
+        renderUI(renderer);
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGuiH::Panel::End();
+      }
+      ImGui::Begin("Sequencer", 0, 16);
+      sequencer.draw();
+      ImGui::End();
+      // ImGui::Begin("framerate", 0, 16);
+      // ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+      // ImGui::End();
+      sequencer.update((float)glfwGetTime());
+
+      // Start rendering the scene
+      // std::chrono::duration<float> diff = std::chrono::system_clock::now() - start;
+      renderer.prepareFrame();
+
+      // Start command buffer of this frame
+      auto                   curFrame = renderer.getCurFrame();
+      const VkCommandBuffer& cmdBuf   = renderer.getCommandBuffers()[curFrame];
+
+      VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+      vkBeginCommandBuffer(cmdBuf, &beginInfo);
+
+      // Updating camera buffer
+      renderer.updateUniformBuffer(cmdBuf);
+
+      // Clearing screen
+      std::array<VkClearValue, 2> clearValues{};
+      clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
+      clearValues[1].depthStencil = {1.0f, 0};
+
+      // Offscreen render pass
+      {
+        // Rendering Scene
+        if (is_raytrace) {
+          renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline);
+        } else {
+          renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline_simpli);
+        }
+      }
+
+      if (img_id >=  0) {
+        std::string img_name = std::to_string(img_id);
+        img_name.insert(img_name.begin(), 5 - img_name.size(), '0');
+        renderer.saveImage("images/" + img_name + ".png");
+        std::cout << img_name << std::endl;
+      }
+
+      // 2nd rendering pass: tone mapper, UI
+      {
+        VkRenderPassBeginInfo postRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        postRenderPassBeginInfo.clearValueCount = 2;
+        postRenderPassBeginInfo.pClearValues    = clearValues.data();
+        postRenderPassBeginInfo.renderPass      = renderer.getRenderPass();
+        postRenderPassBeginInfo.framebuffer     = renderer.getFramebuffers()[curFrame];
+        postRenderPassBeginInfo.renderArea      = {{0, 0}, renderer.getSize()};
+
+        // Rendering tonemapper
+        vkCmdBeginRenderPass(cmdBuf, &postRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        renderer.drawPost(cmdBuf);
+        // Rendering UI
+        ImGui::Render();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
+        vkCmdEndRenderPass(cmdBuf);
+      }
+
+      // Submit for display
+      vkEndCommandBuffer(cmdBuf);
+      renderer.submitFrame();
+      if (is_recording) {
+        is_recording = false;
+        for (int frame : sequencer) {
+          for (int i = 0; i < FRAMES_TO_RENDER; i++) {
+            int image_id = i == FRAMES_TO_RENDER - 1 ? frame : -1;
+            showFrame(false, true, image_id);
+          }
+        }
+      }
+  };
+
+
+
   while(!glfwWindowShouldClose(window))
   {
     glfwPollEvents();
@@ -243,120 +364,7 @@ int main(int argc, char** argv)
     float l = moveSpeed * dtime;
     renderer.camera.move(l * renderer.camera.move_fw, l * renderer.camera.move_rt, l * renderer.camera.move_up);
 
-
-    // Start the Dear ImGui frame
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    // Show UI window.
-    if(renderer.showGui())
-    {
-      ImGuiH::Panel::Begin();
-      ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
-      if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
-        f->setStage(time);
-        renderer.resetFrame();
-      }
-      if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
-            ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
-        filter_x_f = filter_x;
-        filter_y_f = filter_y;
-        filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
-
-        int out_x = filter_x - f->width / 2 + 1;
-        int out_y = filter_y - f->height / 2 + 1;
-        filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
-        f->init(filterProps, TIME_OFFSET);
-        time = min_time;
-        f->setStage(time);
-        renderer.resetFrame();
-      }
-      if (ImGui::Button("Save image")) {
-        renderer.saveImage("result.png");
-      }
-      if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
-      if (ImGui::Button("Save sequence")) sequencer.saveFile("sequences.json");
-
-      renderUI(renderer);
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGuiH::Panel::End();
-
-      ImGui::Begin("Sequencer", 0, 16);
-      sequencer.draw();
-      ImGui::End();
-      sequencer.update((float)glfwGetTime());
-    }
-
-    if (is_recording) {
-      if (time < max_time) {
-        if (renderer.m_pcRay.frame > 100) {
-          time += 0.01;
-          int img_id = time * 1000;
-          std::string img_name = std::to_string(img_id);
-          img_name.insert(img_name.begin(), 5 - img_name.size(), '0');
-          renderer.saveImage("images/" + img_name + ".png");
-          std::cout << img_name << std::endl;
-          f->setStage(time);
-          renderer.resetFrame();
-        }
-      } else {
-        is_recording = false;
-      } 
-    }
-
-    // Start rendering the scene
-    // std::chrono::duration<float> diff = std::chrono::system_clock::now() - start;
-    renderer.prepareFrame();
-
-    // Start command buffer of this frame
-    auto                   curFrame = renderer.getCurFrame();
-    const VkCommandBuffer& cmdBuf   = renderer.getCommandBuffers()[curFrame];
-
-    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmdBuf, &beginInfo);
-
-    // Updating camera buffer
-    renderer.updateUniformBuffer(cmdBuf);
-
-    // Clearing screen
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
-    clearValues[1].depthStencil = {1.0f, 0};
-
-    // Offscreen render pass
-    {
-      // Rendering Scene
-      if (useRaytracer) {
-        renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline);
-      } else {
-        renderer.raytrace(cmdBuf, clearColor, renderer.m_rtPipeline_simpli);
-      }
-    }
-
-
-    // 2nd rendering pass: tone mapper, UI
-    {
-      VkRenderPassBeginInfo postRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-      postRenderPassBeginInfo.clearValueCount = 2;
-      postRenderPassBeginInfo.pClearValues    = clearValues.data();
-      postRenderPassBeginInfo.renderPass      = renderer.getRenderPass();
-      postRenderPassBeginInfo.framebuffer     = renderer.getFramebuffers()[curFrame];
-      postRenderPassBeginInfo.renderArea      = {{0, 0}, renderer.getSize()};
-
-      // Rendering tonemapper
-      vkCmdBeginRenderPass(cmdBuf, &postRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      renderer.drawPost(cmdBuf);
-      // Rendering UI
-      ImGui::Render();
-      ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
-      vkCmdEndRenderPass(cmdBuf);
-    }
-
-    // Submit for display
-    vkEndCommandBuffer(cmdBuf);
-    renderer.submitFrame();
+    showFrame(renderer.showGui(), useRaytracer, -1);
   }
 
   // Cleanup

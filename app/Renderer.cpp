@@ -41,6 +41,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include "imgui.h"
 
 extern std::vector<std::string> defaultSearchPaths;
 
@@ -414,6 +415,9 @@ void Renderer::onResize(int /*w*/, int /*h*/)
 void Renderer::onMouseMotion(int x, int y)
 {
   nvvkhl::AppBaseVk::onMouseMotion(x, y);
+
+  if(ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse)
+    return;
 
   static float last_x = -1, last_y = -1;
   if(m_inputs.lmb || m_inputs.rmb || m_inputs.mmb) {

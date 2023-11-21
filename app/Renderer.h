@@ -9,6 +9,8 @@
 #define MODEL_SHELL 64
 #define MODEL_NEUTRAL 128
 
+#define FRAMES_TO_RENDER 100
+
 #include <list>
 
 #include "nvvkhl/appbase_vk.hpp"
