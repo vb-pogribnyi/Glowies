@@ -217,12 +217,19 @@ int main(int argc, char** argv)
       int out_y = filter_y - f->height / 2 + 1;
       filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
       f->init(filterProps, TIME_OFFSET);
+      renderer.resetFrame();
     }
+  };
+  auto updateCameraPos = [&]() {
+    renderer.resetFrame();
   };
   sequencer.track("X", &filter_x_f, updateConvLocation);
   sequencer.track("Y", &filter_y_f, updateConvLocation);
+  sequencer.track("Camera pos", &renderer.camera.pos, updateCameraPos);
+  sequencer.track("Camera tgt", &renderer.camera.tgt, updateCameraPos);
   sequencer.loadFile("sequences.json");
   // Main loop
+  float moveSpeed = 0.3;
   float lastTime = (float)glfwGetTime();
   while(!glfwWindowShouldClose(window))
   {
@@ -233,19 +240,6 @@ int main(int argc, char** argv)
     float dtime = (float)glfwGetTime() - lastTime;
     lastTime = (float)glfwGetTime();
 
-    float moveSpeed = 0.3;
-    // if (movement.sidewise != 0) {
-    //   CameraManip.pan(moveSpeed * movement.sidewise * dtime, 0);
-    //   CameraManip.update();
-    // }
-    // if (movement.upward != 0) {
-    //   CameraManip.pan(0, moveSpeed * movement.upward * dtime);
-    //   CameraManip.update();
-    // }
-    // if (camera.mo != 0) {
-    //   CameraManip.dolly(0, -moveSpeed * 0.2 * movement.forward * dtime);
-    //   CameraManip.update();
-    // }
     float l = moveSpeed * dtime;
     renderer.camera.move(l * renderer.camera.move_fw, l * renderer.camera.move_rt, l * renderer.camera.move_up);
 
