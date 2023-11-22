@@ -65,7 +65,6 @@ int main(int argc, char** argv)
 {
   UNUSED(argc);
 
-
   // Setup GLFW window
   glfwSetErrorCallback(onErrorCallback);
   if(!glfwInit())
@@ -233,8 +232,6 @@ int main(int argc, char** argv)
   float moveSpeed = 0.3;
   float lastTime = (float)glfwGetTime();
 
-
-
   std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
       // Start the Dear ImGui frame
       ImGui_ImplGlfw_NewFrame();
@@ -273,16 +270,12 @@ int main(int argc, char** argv)
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGuiH::Panel::End();
       }
-      ImGui::Begin("Sequencer", 0, 16);
+      ImGui::Begin("Dock_down", 0, 16);
       sequencer.draw();
       ImGui::End();
-      // ImGui::Begin("framerate", 0, 16);
-      // ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      // ImGui::End();
+
       sequencer.update((float)glfwGetTime());
 
-      // Start rendering the scene
-      // std::chrono::duration<float> diff = std::chrono::system_clock::now() - start;
       renderer.prepareFrame();
 
       // Start command buffer of this frame
@@ -349,8 +342,6 @@ int main(int argc, char** argv)
         }
       }
   };
-
-
 
   while(!glfwWindowShouldClose(window))
   {
