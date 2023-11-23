@@ -200,16 +200,18 @@ int main(int argc, char** argv)
     .dst = data_out.getRange(out_x, out_x, out_y, out_y)[0]
   };
   data_out.hide();
+  bool is_hide_output = false;
+  sequencer.onFrameUpdated([&](int frame) {if (frame == 1) {is_hide_output = true;}});
   data.show();
   f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
 
-
+  bool is_pos_updated = false;
   auto updateConvLocation = [&]() {
     if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
       filter_x = (int)filter_x_f;
       filter_y = (int)filter_y_f;
 
-      std::cout << filter_x << ' ' << filter_y << std::endl;
+      // std::cout << filter_x << ' ' << filter_y << std::endl;
 
       filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
@@ -223,13 +225,13 @@ int main(int argc, char** argv)
   auto updateCameraPos = [&]() {
     renderer.resetFrame();
   };
-  sequencer.track("X", &filter_x_f, updateConvLocation);
-  sequencer.track("Y", &filter_y_f, updateConvLocation);
+  sequencer.track("X", &filter_x_f, [&]() {is_pos_updated = true;});
+  sequencer.track("Y", &filter_y_f, [&]() {is_pos_updated = true;});
   sequencer.track("Camera pos", &renderer.camera.pos, updateCameraPos);
   sequencer.track("Camera tgt", &renderer.camera.tgt, updateCameraPos);
   sequencer.loadFile("sequences.json");
   // Main loop
-  float moveSpeed = 0.3;
+  float moveSpeed = 0.8;
   float lastTime = (float)glfwGetTime();
 
   std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
@@ -265,6 +267,24 @@ int main(int argc, char** argv)
         }
         if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
         if (ImGui::Button("Save sequence")) sequencer.saveFile("sequences.json");
+        if (ImGui::Button("Generate sequence")) {
+          sequencer.clear();
+          int step_global = 0;
+          int nx = data.width - f->width + 1, ny = data.height - f->height + 1;
+          int nsteps = nx * ny * FRAMES_PER_CONV_STEP + 1;
+          for (int conv_x = 0; conv_x < nx; conv_x++) {
+            for (int conv_y = 0; conv_y < ny; conv_y++) {
+              for (int step = 0; step <= FRAMES_PER_CONV_STEP; step++) {
+                time = (float)step / FRAMES_PER_CONV_STEP * (max_time - min_time) + min_time;
+                std::cout << conv_x << ' ' << conv_y << ' ' << time << std::endl;
+                sequencer.addKeyframe("X", (float)step_global / nsteps, nsteps, conv_x);
+                sequencer.addKeyframe("Y", (float)step_global / nsteps, nsteps, conv_y);
+                sequencer.addKeyframe("Animation time", (float)step_global / nsteps, nsteps, time);
+                step_global++;
+              }
+            }
+          }
+        }
 
         renderUI(renderer);
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
@@ -354,6 +374,14 @@ int main(int argc, char** argv)
 
     float l = moveSpeed * dtime;
     renderer.camera.move(l * renderer.camera.move_fw, l * renderer.camera.move_rt, l * renderer.camera.move_up);
+    if(is_pos_updated) {
+      updateConvLocation();
+      is_pos_updated = false;
+    }
+    if (is_hide_output) {
+      data_out.hide();
+      is_hide_output = false;
+    }
 
     showFrame(renderer.showGui(), useRaytracer, -1);
   }

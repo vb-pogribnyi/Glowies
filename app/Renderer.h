@@ -10,6 +10,7 @@
 #define MODEL_NEUTRAL 128
 
 #define FRAMES_TO_RENDER 100
+#define FRAMES_PER_CONV_STEP 100
 
 #include <list>
 

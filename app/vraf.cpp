@@ -714,6 +714,7 @@ namespace VRaF {
 				float coord_new = coord_curr / state.zoom.x * zoom_upd;
 
 				state.zoom.x = zoom_upd;
+				std::cout << "ZOOM: " << zoom_upd << ' ' << ImGui::GetWindowSize().x << ' ' << Theme.headerWidth << std::endl;
 				state.pan.x -= coord_new - coord_curr;
 			}
 			if (ImGui::IsMouseDown(2) && io.MouseDelta.x != 0) state.pan.x += io.MouseDelta.x;
@@ -907,11 +908,15 @@ namespace VRaF {
 				i++;
 			}
 		}
+		state.range[0] = data["range_start"].get<int>();
+		state.range[1] = data["range_end"].get<int>();
 	}
 
 	void Sequencer::saveFile(std::string path) {
 		std::cout << "Saving: " << path << std::endl;
 		nlohmann::json jdata;
+		jdata["range_start"] = state.range[0];
+		jdata["range_end"] = state.range[1];
 		jdata["tracks"] = nlohmann::json::array();
 		
 		for (Track& track : tracks) {
@@ -936,6 +941,26 @@ namespace VRaF {
 
 		std::ofstream fs(path);
 		fs << std::setw(4) << jdata;
+	}
+
+	void Sequencer::clear() {
+		for (Track &t : tracks) {
+			for (Event &e : t.events)
+			e.clear();
+		}
+	}
+
+	void Sequencer::addKeyframe(std::string label, float step, int nsteps, float value) {
+		for (Track &t : tracks) {
+			if (t.label != label) continue;
+
+			t.events[0].time = 0;
+			t.events[0].duration = nsteps;
+			t.events[0].keyframes.push_back({step, value});
+			state.range[0] = std::min((float)state.range[0], step * nsteps + 1);
+			state.range[1] = std::max((float)state.range[1], step * nsteps + 1);
+			// std::cout << "Adding key: " << step << ' ' << value << std::endl;
+		}
 	}
 
 	bool Event::update(int frame)
