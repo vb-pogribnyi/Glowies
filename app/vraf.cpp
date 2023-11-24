@@ -485,6 +485,7 @@ namespace VRaF {
 
 		int min_time = (int)(-state.pan.x / state.zoom.x / step - 1) * step;
 		int max_time = (int)((dims.windowSize.x - state.pan.x) / state.zoom.x / step + 1) * step;
+		std::cout << max_time << ' ' << state.zoom.x << ' ' << step << std::endl;
 		auto timelineGrid = [&]() {
 			for (int time = min_time; time < max_time; time += step) {
 				float xMin = time * state.zoom.x;
@@ -708,13 +709,13 @@ namespace VRaF {
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.WantCaptureMouse && ImGui::IsWindowHovered()) {
 			if (io.MouseWheel != 0 && io.MousePos.x > dims.C.x) {
-				float zoom_upd = state.zoom.x + io.MouseWheel;
-				if (zoom_upd < 0.1) zoom_upd = 0.1;
+				float zoom_upd = state.zoom.x + io.MouseWheel * state.zoom.x / 10;
+				if (zoom_upd < 0.01) zoom_upd = 0.01;
 				float coord_curr = io.MousePos.x - dims.C.x - state.pan.x;
 				float coord_new = coord_curr / state.zoom.x * zoom_upd;
 
 				state.zoom.x = zoom_upd;
-				std::cout << "ZOOM: " << zoom_upd << ' ' << ImGui::GetWindowSize().x << ' ' << Theme.headerWidth << std::endl;
+				// std::cout << "ZOOM: " << zoom_upd << ' ' << ImGui::GetWindowSize().x << ' ' << Theme.headerWidth << std::endl;
 				state.pan.x -= coord_new - coord_curr;
 			}
 			if (ImGui::IsMouseDown(2) && io.MouseDelta.x != 0) state.pan.x += io.MouseDelta.x;
@@ -898,7 +899,7 @@ namespace VRaF {
 			}
 			int i = 0;
 			for (auto &jevent : jtrack["events"]) {
-				std::cout << "Event!" << std::endl;
+				// std::cout << "Event!" << std::endl;
 				track->events[i].duration = jevent["duration"];
 				track->events[i].time = jevent["time"];
 				track->events[i].keyframes.clear();
@@ -910,6 +911,8 @@ namespace VRaF {
 		}
 		state.range[0] = data["range_start"].get<int>();
 		state.range[1] = data["range_end"].get<int>();
+		state.pan.x = data["pan"].get<float>();
+		state.zoom.x = data["zoom"].get<float>();
 	}
 
 	void Sequencer::saveFile(std::string path) {
@@ -917,6 +920,8 @@ namespace VRaF {
 		nlohmann::json jdata;
 		jdata["range_start"] = state.range[0];
 		jdata["range_end"] = state.range[1];
+		jdata["zoom"] = state.zoom.x;
+		jdata["pan"] = state.pan.x;
 		jdata["tracks"] = nlohmann::json::array();
 		
 		for (Track& track : tracks) {

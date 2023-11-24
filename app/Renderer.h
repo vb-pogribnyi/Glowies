@@ -9,8 +9,9 @@
 #define MODEL_SHELL 64
 #define MODEL_NEUTRAL 128
 
-#define FRAMES_TO_RENDER 100
-#define FRAMES_PER_CONV_STEP 100
+#define FRAMES_TO_RENDER 500
+#define FRAMES_PER_CONV_STEP 300   
+#define PRTS_PER_SIZE 300
 
 #include <list>
 

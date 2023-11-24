@@ -195,7 +195,7 @@ int main(int argc, char** argv)
   int out_x = filter_x - f->width / 2 + 1;
   int out_y = filter_y - f->height / 2 + 1;
   FilterProps filterProps = {
-    .prts_per_size = 100,
+    .prts_per_size = PRTS_PER_SIZE,
     .src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1),
     .dst = data_out.getRange(out_x, out_x, out_y, out_y)[0]
   };
@@ -235,6 +235,10 @@ int main(int argc, char** argv)
   float lastTime = (float)glfwGetTime();
 
   std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
+      if(is_pos_updated) {
+        updateConvLocation();
+        is_pos_updated = false;
+      }
       // Start the Dear ImGui frame
       ImGui_ImplGlfw_NewFrame();
       ImGui::NewFrame();
@@ -276,7 +280,7 @@ int main(int argc, char** argv)
             for (int conv_y = 0; conv_y < ny; conv_y++) {
               for (int step = 0; step <= FRAMES_PER_CONV_STEP; step++) {
                 time = (float)step / FRAMES_PER_CONV_STEP * (max_time - min_time) + min_time;
-                std::cout << conv_x << ' ' << conv_y << ' ' << time << std::endl;
+                // std::cout << conv_x << ' ' << conv_y << ' ' << time << std::endl;
                 sequencer.addKeyframe("X", (float)step_global / nsteps, nsteps, conv_x);
                 sequencer.addKeyframe("Y", (float)step_global / nsteps, nsteps, conv_y);
                 sequencer.addKeyframe("Animation time", (float)step_global / nsteps, nsteps, time);
@@ -374,10 +378,6 @@ int main(int argc, char** argv)
 
     float l = moveSpeed * dtime;
     renderer.camera.move(l * renderer.camera.move_fw, l * renderer.camera.move_rt, l * renderer.camera.move_up);
-    if(is_pos_updated) {
-      updateConvLocation();
-      is_pos_updated = false;
-    }
     if (is_hide_output) {
       data_out.hide();
       is_hide_output = false;

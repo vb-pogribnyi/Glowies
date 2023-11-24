@@ -445,7 +445,9 @@ vec3 PathTrace(Ray r, uint seed)
 
     // Color at vertices
     state.mat.albedo *= sstate.color;
-    state.mat.f0 *= sstate.color;
+
+    // For metallic being colored
+    // state.mat.f0 *= sstate.color;
 
     // Debugging info
     if(rtxState.debugging_mode != eNoDebug && rtxState.debugging_mode < eRadiance)
