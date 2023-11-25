@@ -27,6 +27,8 @@ struct DIProperties {
     bool is_has_reference;
     bool is_construction;
     vec3 position;
+    vec2 rotation = vec2(0, 0);     // Can change pitch & yaw, not roll
+    float height = 1;               // 0 or negative yields in height same as the size
     float scale;
     float scale_ref;
 };
@@ -61,6 +63,7 @@ public:
     void show();
     void showStatic();
     void hideStatic();
+    float getHeight();
 };
 
 class Particle {
@@ -100,7 +103,7 @@ public:
     std::vector<DataItem> components;
     mat4 transform;
 
-    DISet(std::vector<DataItem> components);
+    DISet(Renderer &renderer, vec3 pos);
     void moveTo(vec3 position, bool is_hidden=false);
     std::vector<vec3> split(float n, float& w, float& h);
     void setScale(float scale, float scale_ref = 0.0f);

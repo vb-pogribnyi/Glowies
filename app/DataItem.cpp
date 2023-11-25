@@ -39,14 +39,19 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     else scale_neg = -props.scale;
     mat4 transform_pos;
     mat4 transform_neg;
+    float height = getHeight();
 
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), 1, std::abs(props.scale)));
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), height, std::abs(props.scale)));
     transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, 1, scale_pos));
+         nvmath::rotation_mat4_x(props.rotation.x) * 
+         nvmath::rotation_mat4_z(props.rotation.y) * 
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, height, scale_pos));
     transform_neg = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, 1, scale_neg));
+         nvmath::rotation_mat4_x(props.rotation.x) * 
+         nvmath::rotation_mat4_z(props.rotation.y) * 
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, height, scale_neg));
     if (props.is_construction) {
         renderer.m_instances[idx_pos_constr].transform = transform_pos;
         renderer.m_tlas[idx_pos_constr].transform = nvvk::toTransformMatrixKHR(transform_pos);
@@ -56,17 +61,21 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
 
         if (!is_static) is_hidden = true;
         transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, 1, scale_pos));
+            nvmath::rotation_mat4_x(props.rotation.x) * 
+            nvmath::rotation_mat4_z(props.rotation.y) * 
+            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_pos, height, scale_pos));
         transform_neg = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, 1, scale_neg));
+            nvmath::rotation_mat4_x(props.rotation.x) * 
+            nvmath::rotation_mat4_z(props.rotation.y) * 
+            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(scale_neg, height, scale_neg));
     }
     renderer.m_instances[idx_pos].transform = transform_pos;
     renderer.m_tlas[idx_pos].transform = nvvk::toTransformMatrixKHR(transform_pos);
     renderer.m_instances[idx_neg].transform = transform_neg;
     renderer.m_tlas[idx_neg].transform = nvvk::toTransformMatrixKHR(transform_neg);
     if (props.is_has_reference) {
-        renderer.m_instances[idx_ref].transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.4, position.z)) * 
-            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(props.scale_ref, 0.8f, props.scale_ref));
+        renderer.m_instances[idx_ref].transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
+            nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(props.scale_ref));
         renderer.m_tlas[idx_ref].transform = nvvk::toTransformMatrixKHR(
             renderer.m_instances[idx_ref].transform);
     }
@@ -74,15 +83,22 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     renderer.is_rebuild_tlas = true;
 }
 
+float DataItem::getHeight() {
+    float height = props.height > 0 ? props.height : std::abs(props.scale);
+    if (props.scale_ref > 0) height *= props.scale_ref;
+
+    return height;
+}
+
 std::vector<vec3> DataItem::split(float n, float& w, float& h) {
     n = std::max(n, 1.f);
     int nrows, ncols, nlrs;                         // The last one is number of layers
+    float height = getHeight();
 
-    float di_volume = props.scale * props.scale;    // Height is 1. scale x scale x 1
-    float di_area = di_volume;
+    float di_volume = props.scale * props.scale * height;    // Height is 1. scale x scale x 1
     float point_volume = di_volume / n;
     float point_height = cbrt(point_volume);
-    nlrs = floor(1.0 / point_height);
+    nlrs = floor(height / point_height);
     nlrs = std::min((float)nlrs, n);
     if (nlrs == 0) nlrs = 1;
     h = 1.0 / nlrs;
@@ -217,12 +233,35 @@ vec3 BCurve::eval(float t) const {
             + 3 * float((1 - t) * pow(t, 2)) * p3 + float(pow(t, 3)) * p4;
 }
 
-DISet::DISet(std::vector<DataItem> components) : components(components) {
+DISet::DISet(Renderer &renderer, vec3 pos) {
+    DIProperties props;
+    props = {
+        .is_has_reference = true,
+        .is_construction = false,
+        .position = pos,
+        .height = 1.5f,
+        .scale = 1.0f,
+        .scale_ref = 1.0f
+    };
+    DataItem di(renderer, props, renderer.indices);
+    components.push_back(di);
+
+    props.rotation = {3.14159/2, 0};
+    props.is_has_reference = false;
+    DataItem di2(renderer, props, renderer.indices);
+    components.push_back(di2);
+
+    props.rotation = {0, 3.14159/2};
+    DataItem di3(renderer, props, renderer.indices);
+    components.push_back(di3);
+
     transform = components[0].transform;
 }
 
 void DISet::moveTo(vec3 position, bool is_hidden) {
-    components[0].moveTo(position, is_hidden);
+    for (DataItem &c : components) {
+        c.moveTo(position, is_hidden);
+    }
     transform = components[0].transform;
 }
 
@@ -283,15 +322,15 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
         pos_x *= SPACING;
         pos_y *= SPACING;
 
-        props = {
-            .is_has_reference = true,
-            .is_construction = false,
-            .position = vec3(pos_x, 1.5, pos_y),
-            .scale = 1.0f,
-            .scale_ref = 1.0f
-        };
-        DataItem di(renderer, props, renderer.indices);
-        DISet diset({di});
+        // props = {
+        //     .is_has_reference = true,
+        //     .is_construction = false,
+        //     .position = vec3(pos_x, 1.5, pos_y),
+        //     .scale = 1.0f,
+        //     .scale_ref = 1.0f
+        // };
+        // DataItem di(renderer, props, renderer.indices);
+        DISet diset(renderer, vec3(pos_x, 1.5, pos_y));
         weights_di.push_back(diset);
         idx++;
     }
@@ -300,6 +339,7 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
         .is_has_reference = false,
         .is_construction = true,
         .position = vec3(0, LAYER_HEIGHT, 0),
+        .height = 0,
         .scale = (float)1.0
     };
     dst = new DataItem(renderer, props, renderer.indices);
@@ -350,7 +390,7 @@ void Filter::init(FilterProps props, float time_offset) {
         movement_offsets.push_back(((float)(rand() % 100) / 100 - 0.5) * TIME_OFFSET_DI_MOVEMENT);
 
         float target_scale = props.src[i]->props.scale;
-        target_pos.y += .5;
+        // target_pos.y += 0.5;
 
         weights_scales_old[i] = weights_scales[i];
         weights_positions_old[i] = weights_positions[i];
@@ -516,7 +556,7 @@ void Filter::setStage(float value) {
             float curve_value = value + curves[i].time_offset;
             float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
             // Only width should be scaled. DI height always remains 1.0
-            vec3 scale(prt_w * dst->props.scale, prt_h, prt_w * dst->props.scale);
+            vec3 scale(prt_w * dst->props.scale, prt_h * dst->props.scale, prt_w * dst->props.scale);
             // Add scale offset. If the filler and DI overlap, weird things happen.
             scale *= 1.01f;
             float show_transition = curve_value / ANIMATION_DURATION * 100;
@@ -596,6 +636,7 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset) {
         .is_has_reference = false,
         .is_construction = false,
         .position = vec3(pos_x, 0, pos_y) + offset,
+        .height = 0,
         .scale = (float)value
     };
     DataItem di(renderer, props, renderer.indices);
