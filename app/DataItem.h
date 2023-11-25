@@ -95,6 +95,21 @@ struct BCurve {
     vec3 eval(float t) const;
 };
 
+class DISet {
+public:
+    std::vector<DataItem> components;
+    mat4 transform;
+
+    DISet(std::vector<DataItem> components);
+    void moveTo(vec3 position, bool is_hidden=false);
+    std::vector<vec3> split(float n, float& w, float& h);
+    void setScale(float scale, float scale_ref = 0.0f);
+    void hide();
+    void show();
+    void showStatic();
+    void hideStatic();
+};
+
 class Filter {
 public:
     FilterProps props;
@@ -114,7 +129,7 @@ public:
     std::vector<vec3> weights_positions;
     std::vector<std::pair<float, float>> weights_scales_old;
     std::vector<vec3> weights_positions_old;
-    std::vector<DataItem> weights_di;
+    std::vector<DISet> weights_di;
     float prt_w, prt_h;
     float time_offset = 0.0;
 

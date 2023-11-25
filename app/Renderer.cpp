@@ -959,7 +959,7 @@ void Camera::move(float forward, float right, float up) {
 }
 
 void Camera::rotate(float yaw, float pitch) {
-  std::cout << "Rotating: " << yaw << ' ' << pitch << std::endl;
+  // std::cout << "Rotating: " << yaw << ' ' << pitch << std::endl;
 
   if(yaw == 0 && pitch == 0)
     return;

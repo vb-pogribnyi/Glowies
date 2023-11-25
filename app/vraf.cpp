@@ -485,7 +485,7 @@ namespace VRaF {
 
 		int min_time = (int)(-state.pan.x / state.zoom.x / step - 1) * step;
 		int max_time = (int)((dims.windowSize.x - state.pan.x) / state.zoom.x / step + 1) * step;
-		std::cout << max_time << ' ' << state.zoom.x << ' ' << step << std::endl;
+		// std::cout << max_time << ' ' << state.zoom.x << ' ' << step << std::endl;
 		auto timelineGrid = [&]() {
 			for (int time = min_time; time < max_time; time += step) {
 				float xMin = time * state.zoom.x;

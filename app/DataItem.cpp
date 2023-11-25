@@ -217,6 +217,50 @@ vec3 BCurve::eval(float t) const {
             + 3 * float((1 - t) * pow(t, 2)) * p3 + float(pow(t, 3)) * p4;
 }
 
+DISet::DISet(std::vector<DataItem> components) : components(components) {
+    transform = components[0].transform;
+}
+
+void DISet::moveTo(vec3 position, bool is_hidden) {
+    components[0].moveTo(position, is_hidden);
+    transform = components[0].transform;
+}
+
+std::vector<vec3> DISet::split(float n, float& w, float& h) {
+    return components[0].split(n, w, h);
+}
+
+void DISet::setScale(float scale, float scale_ref) {
+    for (DataItem &c : components) {
+        c.setScale(scale, scale_ref);
+    }
+    transform = components[0].transform;
+}
+
+void DISet::hide() {
+    for (DataItem &c : components) {
+        c.hide();
+    }
+}
+
+void DISet::show() {
+    for (DataItem &c : components) {
+        c.show();
+    }
+}
+
+void DISet::showStatic() {
+    for (DataItem &c : components) {
+        c.showStatic();
+    }
+}
+
+void DISet::hideStatic() {
+    for (DataItem &c : components) {
+        c.hideStatic();
+    }
+}
+
 Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
     npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
     bias = bias_np.data[0];
@@ -247,7 +291,8 @@ Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer)
             .scale_ref = 1.0f
         };
         DataItem di(renderer, props, renderer.indices);
-        weights_di.push_back(di);
+        DISet diset({di});
+        weights_di.push_back(diset);
         idx++;
     }
 
@@ -332,7 +377,7 @@ void Filter::init_prt_curves() {
     int i = 0;
 
     // Split the filter's weights into particles
-    for (DataItem &weight_di : weights_di) {
+    for (DISet &weight_di : weights_di) {
         for (vec3 prt : weight_di.split(props.prts_per_size * std::abs(weights_scales[i].first), prt_w, prt_h)) {
             if (weights_scales[i].first > 0) {
                 particles_pos.push_back((vec3)(weight_di.transform * vec4(prt, 1)));
