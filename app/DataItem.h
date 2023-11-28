@@ -136,8 +136,7 @@ public:
     float prt_w, prt_h;
     float time_offset = 0.0;
 
-    Filter(Renderer& renderer, std::string weightsPath, int outLayer = 0
-    );
+    Filter(Renderer& renderer, std::string weightsPath, int outLayer = 0);
     ~Filter();
     void init(FilterProps props, float time_offset);
     void init_di_curves();
@@ -152,7 +151,7 @@ class Data {
 public:
     int width, height;
     std::vector<DataItem> items;
-    Data(Renderer& renderer, const std::string path, vec3 offset);
+    Data(Renderer& renderer, const std::string path, vec3 offset, int layer = 0);
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
     void hide();
     void show();

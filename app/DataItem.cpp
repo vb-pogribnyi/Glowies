@@ -314,28 +314,20 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
     DIProperties props;
     for (double value : weights_np.data) {
         int layer = idx / itemsPerLayer;
-        if (layer % weights_np.shape[0] != outLayer) continue;
+        if (layer % weights_np.shape[0] == outLayer) {
+            weights.push_back(value);
+            weights_scales.push_back({value, 1});
+            weights_positions.push_back(vec3(0, 0, 0));
+            weights_scales_old.push_back({value, 1});
+            weights_positions_old.push_back(vec3(0, 0, 0));
+            float pos_x = idx / weights_np.shape[3];
+            float pos_y = idx % weights_np.shape[3];
+            pos_x *= SPACING;
+            pos_y *= SPACING;
 
-        weights.push_back(value);
-        weights_scales.push_back({value, 1});
-        weights_positions.push_back(vec3(0, 0, 0));
-        weights_scales_old.push_back({value, 1});
-        weights_positions_old.push_back(vec3(0, 0, 0));
-        float pos_x = idx / weights_np.shape[3];
-        float pos_y = idx % weights_np.shape[3];
-        pos_x *= SPACING;
-        pos_y *= SPACING;
-
-        // props = {
-        //     .is_has_reference = true,
-        //     .is_construction = false,
-        //     .position = vec3(pos_x, 1.5, pos_y),
-        //     .scale = 1.0f,
-        //     .scale_ref = 1.0f
-        // };
-        // DataItem di(renderer, props, renderer.indices);
-        DISet diset(renderer, vec3(pos_x, 1.5, pos_y));
-        weights_di.push_back(diset);
+            DISet diset(renderer, vec3(pos_x, 1.5, pos_y));
+            weights_di.push_back(diset);
+        }
         idx++;
     }
 
@@ -626,27 +618,30 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
     }
 }
 
-Data::Data(Renderer& renderer, const std::string path, vec3 offset) {
+Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
   npy::npy_data d = npy::read_npy<double>(path);
 
-  width = d.shape[0];
-  height = d.shape[1];
+  width = d.shape[1];
+  height = d.shape[2];
+  int valsPerLayer = width * height;
   int idx = 0;
   for (double value : d.data) {
-    float pos_x = idx / d.shape[1];
-    float pos_y = idx % d.shape[1];
-    pos_x *= SPACING;
-    pos_y *= SPACING;
+    if (idx / valsPerLayer == layer) {
+        float pos_x = (idx - layer * valsPerLayer) / d.shape[2];
+        float pos_y = (idx - layer * valsPerLayer) % d.shape[2];
+        pos_x *= SPACING;
+        pos_y *= SPACING;
 
-    DIProperties props = {
-        .is_has_reference = false,
-        .is_construction = false,
-        .position = vec3(pos_x, 0, pos_y) + offset,
-        .height = 0,
-        .scale = (float)value
-    };
-    DataItem di(renderer, props, renderer.indices);
-    items.push_back(di);
+        DIProperties props = {
+            .is_has_reference = false,
+            .is_construction = false,
+            .position = vec3(pos_x, 0, pos_y) + offset,
+            .height = 0,
+            .scale = (float)value
+        };
+        DataItem di(renderer, props, renderer.indices);
+        items.push_back(di);
+    }
     idx++;
   }
 }

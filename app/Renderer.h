@@ -10,7 +10,7 @@
 #define MODEL_NEUTRAL 128
 
 #define FRAMES_TO_RENDER 50
-#define FRAMES_PER_CONV_STEP 300   
+#define FRAMES_PER_CONV_STEP 30
 #define PRTS_PER_SIZE 300
 
 #include <list>
