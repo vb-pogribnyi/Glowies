@@ -192,12 +192,10 @@ int main(int argc, char** argv)
       renderer.resetFrame();
   });
 
-  int out_x = filter_x - f->width / 2 + 1;
-  int out_y = filter_y - f->height / 2 + 1;
   FilterProps filterProps = {
     .prts_per_size = PRTS_PER_SIZE,
     .src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1),
-    .dst = data_out.getRange(out_x, out_x, out_y, out_y)[0]
+    .dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0]
   };
   data_out.hide();
   bool is_hide_output = false;
@@ -215,9 +213,7 @@ int main(int argc, char** argv)
 
       filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
-      int out_x = filter_x - f->width / 2 + 1;
-      int out_y = filter_y - f->height / 2 + 1;
-      filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
+      filterProps.dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0];
       f->init(filterProps, TIME_OFFSET);
       renderer.resetFrame();
     }
@@ -258,9 +254,7 @@ int main(int argc, char** argv)
           filter_y_f = filter_y;
           filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
-          int out_x = filter_x - f->width / 2 + 1;
-          int out_y = filter_y - f->height / 2 + 1;
-          filterProps.dst = data_out.getRange(out_x, out_x, out_y, out_y)[0];
+          filterProps.dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0];
           f->init(filterProps, TIME_OFFSET);
           time = min_time;
           f->setStage(time);

@@ -136,7 +136,8 @@ public:
     float prt_w, prt_h;
     float time_offset = 0.0;
 
-    Filter(Renderer& renderer, std::string weightsPath);
+    Filter(Renderer& renderer, std::string weightsPath, int outLayer = 0
+    );
     ~Filter();
     void init(FilterProps props, float time_offset);
     void init_di_curves();

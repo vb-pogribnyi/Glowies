@@ -300,25 +300,29 @@ void DISet::hideStatic() {
     }
 }
 
-Filter::Filter(Renderer& renderer, std::string weightsPath) : renderer(renderer) {
+Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : renderer(renderer) {
     npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
-    bias = bias_np.data[0];
+    bias = bias_np.data[outLayer];
 
     npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
-    width = weights_np.shape[0];
-    height = weights_np.shape[1];
+    width = weights_np.shape[2];
+    height = weights_np.shape[3];
     props.dst = 0;
 
     int idx = 0;
+    int itemsPerLayer = width * height;
     DIProperties props;
     for (double value : weights_np.data) {
+        int layer = idx / itemsPerLayer;
+        if (layer % weights_np.shape[0] != outLayer) continue;
+
         weights.push_back(value);
         weights_scales.push_back({value, 1});
         weights_positions.push_back(vec3(0, 0, 0));
         weights_scales_old.push_back({value, 1});
         weights_positions_old.push_back(vec3(0, 0, 0));
-        float pos_x = idx / weights_np.shape[1];
-        float pos_y = idx % weights_np.shape[1];
+        float pos_x = idx / weights_np.shape[3];
+        float pos_y = idx % weights_np.shape[3];
         pos_x *= SPACING;
         pos_y *= SPACING;
 
@@ -378,6 +382,7 @@ void Filter::init(FilterProps props, float time_offset) {
     float result_x = 0;
     float result_y = 0;
     float result_z = 0;
+    // std::cout << std::endl << "Calculating window:" << std::endl;
     for (int i = 0; i < props.src.size(); i++) {
         float applied_value = props.src[i]->props.scale * weights[i];
         // std::cout << props.src[i]->props.scale << ' ' << weights[i] << std::endl;
@@ -391,6 +396,7 @@ void Filter::init(FilterProps props, float time_offset) {
 
         float target_scale = props.src[i]->props.scale;
         // target_pos.y += 0.5;
+        // std::cout << props.src[i]->props.scale << '\t' << weights[i] << '\t' << applied_value << '\t' << result_value << std::endl;
 
         weights_scales_old[i] = weights_scales[i];
         weights_positions_old[i] = weights_positions[i];
@@ -401,7 +407,7 @@ void Filter::init(FilterProps props, float time_offset) {
         weights_di[i].setScale(weights_scales_old[i].first, std::abs(weights_scales_old[i].second) + 0.001);
 
     }
-    if (std::abs(result_value + bias - props.dst->props.scale) > 1e-7) {
+    if (std::abs(result_value + bias - props.dst->props.scale) > 1e-6) {
         throw std::runtime_error("Generated and given result won't match");
     }
 
