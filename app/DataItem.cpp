@@ -310,10 +310,11 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
     props.dst = 0;
 
     int idx = 0;
-    int itemsPerLayer = width * height;
+    int itemsPerOutLayer = width * height * weights_np.shape[1];
     DIProperties props;
     for (double value : weights_np.data) {
-        int layer = idx / itemsPerLayer;
+        int layer = idx / itemsPerOutLayer;
+        // std::cout << idx << '\t' << layer << '\t' << value << std::endl;
         if (layer % weights_np.shape[0] == outLayer) {
             weights.push_back(value);
             weights_scales.push_back({value, 1});
@@ -388,7 +389,7 @@ void Filter::init(FilterProps props, float time_offset) {
 
         float target_scale = props.src[i]->props.scale;
         // target_pos.y += 0.5;
-        // std::cout << props.src[i]->props.scale << '\t' << weights[i] << '\t' << applied_value << '\t' << result_value << std::endl;
+        // std::cout << i << '\t' << props.src[i]->props.scale << '\t' << weights[i] << '\t' << applied_value << '\t' << result_value << std::endl;
 
         weights_scales_old[i] = weights_scales[i];
         weights_positions_old[i] = weights_positions[i];
@@ -621,21 +622,24 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
 Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
   npy::npy_data d = npy::read_npy<double>(path);
 
+  depth = layer > 0 ? 1 : d.shape[0];
   width = d.shape[1];
   height = d.shape[2];
   int valsPerLayer = width * height;
   int idx = 0;
   for (double value : d.data) {
-    if (idx / valsPerLayer == layer) {
-        float pos_x = (idx - layer * valsPerLayer) / d.shape[2];
-        float pos_y = (idx - layer * valsPerLayer) % d.shape[2];
+    int dataLayer = idx / valsPerLayer;
+    if (layer < 0 || dataLayer == layer) {
+        float pos_x = (idx - dataLayer * valsPerLayer) / d.shape[2];
+        float pos_y = (idx - dataLayer * valsPerLayer) % d.shape[2];
+        float pos_z = dataLayer * SPACING;
         pos_x *= SPACING;
         pos_y *= SPACING;
 
         DIProperties props = {
             .is_has_reference = false,
             .is_construction = false,
-            .position = vec3(pos_x, 0, pos_y) + offset,
+            .position = vec3(pos_x, pos_z, pos_y) + offset,
             .height = 0,
             .scale = (float)value
         };
@@ -655,10 +659,11 @@ std::vector<DataItem*> Data::getRange(int x1, int x2, int y1, int y2) {
     y2 = std::min(y2, height);
 
     std::vector<DataItem*> result;
-    result.reserve((x2 - x1) * (y2 - y1));
+    result.reserve((x2 - x1) * (y2 - y1) * depth);
     for (int i = 0; i < items.size(); i++) {
-        int y = i % height;
-        int x = i / height;
+        int layer_i = i % (width * height);
+        int y = layer_i % height;
+        int x = layer_i / height;
         if (x >= x1 && x <= x2 && y >= y1 && y <= y2) result.push_back(&items[i]);
     }
 

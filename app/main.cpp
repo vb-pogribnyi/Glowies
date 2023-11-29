@@ -152,8 +152,8 @@ int main(int argc, char** argv)
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
   Data data(renderer, "data.npy", vec3(0, 0, 0));
-  Filter* f = new Filter(renderer, "filter", 1);
-  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f->width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f->height - 1) / 2), 1);
+  Filter* f = new Filter(renderer, "filter", 0);
+  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f->width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f->height - 1) / 2), 0);
 
   auto start = std::chrono::system_clock::now();
 

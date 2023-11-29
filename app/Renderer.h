@@ -11,7 +11,7 @@
 
 #define FRAMES_TO_RENDER 50
 #define FRAMES_PER_CONV_STEP 30
-#define PRTS_PER_SIZE 300
+#define PRTS_PER_SIZE 100
 
 #include <list>
 
