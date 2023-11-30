@@ -260,7 +260,7 @@ DISet::DISet(Renderer &renderer, vec3 pos) {
 
 void DISet::moveTo(vec3 position, bool is_hidden) {
     for (DataItem &c : components) {
-        c.moveTo(position, is_hidden);
+        c.moveTo(position, is_hidden || this->is_hidden);
     }
     transform = components[0].transform;
 }
@@ -270,6 +270,7 @@ std::vector<vec3> DISet::split(float n, float& w, float& h) {
 }
 
 void DISet::setScale(float scale, float scale_ref) {
+    if (this->is_hidden) return;
     for (DataItem &c : components) {
         c.setScale(scale, scale_ref);
     }
@@ -277,12 +278,14 @@ void DISet::setScale(float scale, float scale_ref) {
 }
 
 void DISet::hide() {
+    is_hidden = true;
     for (DataItem &c : components) {
         c.hide();
     }
 }
 
 void DISet::show() {
+    is_hidden = false;
     for (DataItem &c : components) {
         c.show();
     }
@@ -311,22 +314,25 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
 
     int idx = 0;
     int itemsPerOutLayer = width * height * weights_np.shape[1];
+    int itemsPerInLayer = width * height;
     DIProperties props;
     for (double value : weights_np.data) {
         int layer = idx / itemsPerOutLayer;
         // std::cout << idx << '\t' << layer << '\t' << value << std::endl;
         if (layer % weights_np.shape[0] == outLayer) {
+            int layer_idx = idx % itemsPerOutLayer;
             weights.push_back(value);
             weights_scales.push_back({value, 1});
             weights_positions.push_back(vec3(0, 0, 0));
             weights_scales_old.push_back({value, 1});
             weights_positions_old.push_back(vec3(0, 0, 0));
-            float pos_x = idx / weights_np.shape[3];
-            float pos_y = idx % weights_np.shape[3];
+            float pos_x = layer_idx / weights_np.shape[3];
+            float pos_y = layer_idx % weights_np.shape[3];
             pos_x *= SPACING;
             pos_y *= SPACING;
 
             DISet diset(renderer, vec3(pos_x, 1.5, pos_y));
+            diset.layer = layer_idx / itemsPerInLayer;
             weights_di.push_back(diset);
         }
         idx++;
@@ -405,7 +411,8 @@ void Filter::init(FilterProps props, float time_offset) {
     }
 
     dst->setScale(result_value);
-    dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()));
+    // dst->moveTo(vec3(result_x / weights.size(), result_z / weights.size() + LAYER_HEIGHT, result_y / weights.size()));
+    dst->moveTo(props.dst->props.position);
 }
 
 void Filter::init_prt_curves() {
@@ -619,6 +626,12 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
     }
 }
 
+void Filter::hide_layer(int layer) {
+    for (auto &w : weights_di) {
+        if (w.layer == layer) w.hide();
+    }
+}
+
 Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
   npy::npy_data d = npy::read_npy<double>(path);
 
@@ -644,6 +657,7 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
             .scale = (float)value
         };
         DataItem di(renderer, props, renderer.indices);
+        di.layer = dataLayer;
         items.push_back(di);
     }
     idx++;
@@ -679,5 +693,11 @@ void Data::hide() {
 void Data::show() {
     for (DataItem &i : items) {
         i.show();
+    }
+}
+
+void Data::hide_layer(int layer) {
+    for (DataItem &i : items) {
+        if (i.layer == layer) i.hide();
     }
 }

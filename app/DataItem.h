@@ -44,6 +44,7 @@ public:
     Renderer& renderer;
     vec3 position;
     mat4 transform;
+    int layer;
 
     // Indices of the models: positive, negative, (construction) positive&negative, reference (glass)
     int idx_pos;
@@ -102,6 +103,8 @@ class DISet {
 public:
     std::vector<DataItem> components;
     mat4 transform;
+    int layer;
+    bool is_hidden = false;
 
     DISet(Renderer &renderer, vec3 pos);
     void moveTo(vec3 position, bool is_hidden=false);
@@ -142,6 +145,7 @@ public:
     void init_di_curves();
     void init_prt_curves();
     vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
+    void hide_layer(int layer);
 
     // The transition stage would vary between 0 and 5
     void setStage(float value);
@@ -155,6 +159,7 @@ public:
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
     void hide();
     void show();
+    void hide_layer(int layer);
 };
 
 #endif

@@ -198,10 +198,18 @@ int main(int argc, char** argv)
     .dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0]
   };
   data_out.hide();
+
   bool is_hide_output = false;
   sequencer.onFrameUpdated([&](int frame) {if (frame == 1) {is_hide_output = true;}});
   data.show();
   f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
+  f->hide_layer(4);
+  f->hide_layer(3);
+  // f->hide_layer(2);
+  // f->hide_layer(1);
+  // f->hide_layer(0);
+  data.hide_layer(4);
+  data.hide_layer(3);
 
   bool is_pos_updated = false;
   auto updateConvLocation = [&]() {
