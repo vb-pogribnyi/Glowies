@@ -155,7 +155,7 @@ class Data {
 public:
     int width, height, depth;
     std::vector<DataItem> items;
-    Data(Renderer& renderer, const std::string path, vec3 offset, int layer = -1);
+    Data(Renderer& renderer, const std::string path, vec3 offset, int layer = -1, float spacing_x = 1, float spacing_y = 1, float spacing_z = 1);
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
     void hide();
     void show();

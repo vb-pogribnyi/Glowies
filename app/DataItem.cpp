@@ -632,7 +632,7 @@ void Filter::hide_layer(int layer) {
     }
 }
 
-Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
+Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer, float spacing_x, float spacing_y, float spacing_z) {
   npy::npy_data d = npy::read_npy<double>(path);
 
   depth = layer > 0 ? 1 : d.shape[0];
@@ -645,9 +645,14 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
     if (layer < 0 || dataLayer == layer) {
         float pos_x = (idx - dataLayer * valsPerLayer) / d.shape[2];
         float pos_y = (idx - dataLayer * valsPerLayer) % d.shape[2];
-        float pos_z = dataLayer * SPACING;
-        pos_x *= SPACING;
-        pos_y *= SPACING;
+        float pos_z = dataLayer * SPACING * spacing_z;
+        std::cout << pos_x << '\t' << pos_y << '\t';
+        pos_x -= width / 2 - 0.5;
+        pos_y -= height / 2 - 0.5;
+        std::cout << pos_x << '\t' << pos_y << '\t';
+        pos_x *= SPACING * spacing_x;
+        pos_y *= SPACING * spacing_y;
+        std::cout << pos_x << '\t' << pos_y << std::endl;
 
         DIProperties props = {
             .is_has_reference = false,
