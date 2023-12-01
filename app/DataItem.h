@@ -8,7 +8,7 @@
 // Distance constraints
 #define SPACING 1.2
 #define MERGE_HEIGHT 3.0
-#define LAYER_HEIGHT 4.0
+#define LAYER_HEIGHT 5.0
 #define MAX_POSITION 100
 
 // Time constraints
@@ -42,7 +42,7 @@ struct PRTProperties {
 class DataItem {
 public:
     Renderer& renderer;
-    vec3 position;
+    // vec3 position;
     mat4 transform;
     int layer;
 
