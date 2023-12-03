@@ -440,50 +440,50 @@ void Renderer::onKeyboard(int key, int scancode, int action, int mods) {
   const bool pressed = action != GLFW_RELEASE;
 
   if(pressed && key == GLFW_KEY_W) {
-    std::cout << "Move forward" << std::endl;
+    // std::cout << "Move forward" << std::endl;
     camera.move_fw = 1;
   } else if(!pressed && key == GLFW_KEY_W) {
-    std::cout << "Stop moving forward" << std::endl;
+    // std::cout << "Stop moving forward" << std::endl;
     camera.move_fw = 0;
   }
 
   if(pressed && key == GLFW_KEY_S) {
-    std::cout << "Move backward" << std::endl;
+    // std::cout << "Move backward" << std::endl;
     camera.move_fw = -1;
   } else if(!pressed && key == GLFW_KEY_S) {
-    std::cout << "Stop moving backward" << std::endl;
+    // std::cout << "Stop moving backward" << std::endl;
     camera.move_fw = 0;
   }
 
   if(pressed && key == GLFW_KEY_A) {
-    std::cout << "Move left" << std::endl;
+    // std::cout << "Move left" << std::endl;
     camera.move_rt = 1;
   } else if(!pressed && key == GLFW_KEY_A) {
-    std::cout << "Stop moving left" << std::endl;
+    // std::cout << "Stop moving left" << std::endl;
     camera.move_rt = 0;
   }
 
   if(pressed && key == GLFW_KEY_D) {
-    std::cout << "Move right" << std::endl;
+    // std::cout << "Move right" << std::endl;
     camera.move_rt = -1;
   } else if(!pressed && key == GLFW_KEY_D) {
-    std::cout << "Stop moving right" << std::endl;
+    // std::cout << "Stop moving right" << std::endl;
     camera.move_rt = 0;
   }
 
   if(pressed && key == GLFW_KEY_E) {
-    std::cout << "Move up" << std::endl;
+    // std::cout << "Move up" << std::endl;
     camera.move_up = 1;
   } else if(!pressed && key == GLFW_KEY_E) {
-    std::cout << "Stop moving up" << std::endl;
+    // std::cout << "Stop moving up" << std::endl;
     camera.move_up = 0;
   }
 
   if(pressed && key == GLFW_KEY_Q) {
-    std::cout << "Move down" << std::endl;
+    // std::cout << "Move down" << std::endl;
     camera.move_up = -1;
   } else if(!pressed && key == GLFW_KEY_Q) {
-    std::cout << "Stop moving down" << std::endl;
+    // std::cout << "Stop moving down" << std::endl;
     camera.move_up = 0;
   }
 }

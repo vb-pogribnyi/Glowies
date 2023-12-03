@@ -158,11 +158,15 @@ int main(int argc, char** argv)
   // Filter* f = new Filter(renderer, "filter", 0);
   // Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f->width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f->height - 1) / 2), 0);
 
-  std::cout << "Data input" << std::endl;
-  datas.push_back(Data(renderer, "input.npy", vec3(0, 0, 0)));
-  std::cout << std::endl << "Data out" << std::endl;
-  datas.push_back(Data(renderer, "out_acti1.npy", vec3(0, 2, 0), -1, 2, 2));
-  // layers.push_back(new Conv(renderer, datas[0], datas[1], "filter"));
+  // std::cout << "Data input" << std::endl;
+  int stride_xy = 8;
+  int stride_z = 4;
+  datas.push_back(Data(renderer, "input.npy", vec3(0, 0, 0), -1, stride_xy, stride_xy, stride_z));
+  // std::cout << std::endl << "Data out" << std::endl;
+  datas.push_back(Data(renderer, "out_conv1.npy", vec3(0, 2, 0), -1, stride_xy, stride_xy, stride_z));
+  
+  layers.push_back(new Conv("Conv 1", renderer, datas[0], datas[1], "filter_1"));
+  
 
   auto start = std::chrono::system_clock::now();
 
@@ -189,17 +193,13 @@ int main(int argc, char** argv)
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
-  const float max_time = 5;
-  const float min_time = 0;
-  float time = min_time;
-  int filter_x = 0, filter_y = 0;
-  float filter_x_f = filter_x, filter_y_f = filter_y;
+  // const float max_time = 5;
+  // const float min_time = 0;
+  // float time = min_time;
+  // int filter_x = 0, filter_y = 0;
+  // float filter_x_f = filter_x, filter_y_f = filter_y;
 
   VRaF::Sequencer sequencer;
-  sequencer.track("Animation time", &time, [&]() {
-      // f->setStage(time);
-      renderer.resetFrame();
-  });
 
   // FilterProps filterProps = {
   //   .prts_per_size = PRTS_PER_SIZE,
@@ -212,6 +212,7 @@ int main(int argc, char** argv)
   sequencer.onFrameUpdated([&](int frame) {if (frame == 1) {is_hide_output = true;}});
   // data.show();
   for (Data &d : datas) d.show();
+  for (Layer *l : layers) l->init();
   // f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
   // f->hide_layer(4);
   // f->hide_layer(3);
@@ -221,38 +222,39 @@ int main(int argc, char** argv)
   // data.hide_layer(4);
   // data.hide_layer(3);
 
-  bool is_pos_updated = false;
-  auto updateConvLocation = [&]() {
-    if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
-      filter_x = (int)filter_x_f;
-      filter_y = (int)filter_y_f;
+  // auto updateConvLocation = [&]() {
+  //   if ((int)pending_update->filter_x_f != pending_update->filter_x || (int)pending_update->filter_y_f != pending_update->filter_y) {
+  //     pending_update->filter_x = (int)pending_update->filter_x_f;
+  //     pending_update->filter_y = (int)pending_update->filter_y_f;
 
-      // std::cout << filter_x << ' ' << filter_y << std::endl;
+  //     // std::cout << filter_x << ' ' << filter_y << std::endl;
 
-      // filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
+  //     pending_update->filterProps.src = pending_update->input.getRange(pending_update->filter_x, pending_update->filter_x + 
+  //         pending_update->active_filter->width - 1, pending_update->filter_y, pending_update->filter_y + pending_update->active_filter->height - 1);
 
-      // filterProps.dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0];
-      // f->init(filterProps, TIME_OFFSET);
-      renderer.resetFrame();
-    }
-  };
+  //     pending_update->filterProps.dst = pending_update->output.getRange(pending_update->filter_x, pending_update->filter_x, pending_update->filter_y, pending_update->filter_y)[0];
+  //     pending_update->active_filter->init(pending_update->filterProps, TIME_OFFSET);
+  //     renderer.resetFrame();
+  //   }
+  // };
   auto updateCameraPos = [&]() {
     renderer.resetFrame();
   };
-  sequencer.track("X", &filter_x_f, [&]() {is_pos_updated = true;});
-  sequencer.track("Y", &filter_y_f, [&]() {is_pos_updated = true;});
+  for (Layer* l : layers) l->setupSequencer(sequencer);
   sequencer.track("Camera pos", &renderer.camera.pos, updateCameraPos);
   sequencer.track("Camera tgt", &renderer.camera.tgt, updateCameraPos);
   sequencer.loadFile("sequences.json");
   // Main loop
-  float moveSpeed = 3.8;
+  float moveSpeed = 15.8;
   float lastTime = (float)glfwGetTime();
 
   std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
-      if(is_pos_updated) {
-        updateConvLocation();
-        is_pos_updated = false;
-      }
+      // if(pending_update) {
+      //   updateConvLocation();
+      //   pending_update = 0;
+      // }
+      for (Layer* layer : layers) layer->update();
+
       // Start the Dear ImGui frame
       ImGui_ImplGlfw_NewFrame();
       ImGui::NewFrame();
@@ -262,9 +264,14 @@ int main(int argc, char** argv)
         ImGuiH::Panel::Begin();
         ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
         if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
-        if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
-          // f->setStage(time);
-          renderer.resetFrame();
+        // if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
+        //   // f->setStage(time);
+        //   renderer.resetFrame();
+        // }
+        for (Layer* layer : layers) {
+          if (ImGui::CollapsingHeader(layer->name.c_str())) {
+            layer->drawGui();
+          }
         }
         // if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
         //       ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {

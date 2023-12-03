@@ -41,6 +41,7 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     mat4 transform_neg;
     float height = getHeight();
 
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
          nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), height, std::abs(props.scale)));
@@ -171,6 +172,7 @@ Particle::~Particle()
 
 void Particle::hide()
 {
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     renderer.m_instances[idxs.particle_signed].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
          nvmath::scale_mat4(nvmath::vec3f(0.0f));
     renderer.m_tlas[idxs.particle_signed].transform = nvvk::toTransformMatrixKHR(
@@ -194,6 +196,7 @@ void Particle::moveTo(vec3 position, float filler_transition, vec3 filler_scale,
     if (nvmath::length(position) > MAX_POSITION) {
         throw std::runtime_error("Position too large");
     }
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     if (filler_transition < 0) filler_transition = 0;
     if (filler_transition > 1) filler_transition = 1;
     if (show_transition < 0) show_transition = 0;
@@ -323,9 +326,9 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
             int layer_idx = idx % itemsPerOutLayer;
             weights.push_back(value);
             weights_scales.push_back({value, 1});
-            weights_positions.push_back(vec3(0, 0, 0));
+            weights_positions.push_back(vec3(-1));
             weights_scales_old.push_back({value, 1});
-            weights_positions_old.push_back(vec3(0, 0, 0));
+            weights_positions_old.push_back(vec3(-1));
             float pos_x = layer_idx / weights_np.shape[3];
             float pos_y = layer_idx % weights_np.shape[3];
             pos_x *= SPACING;
@@ -398,7 +401,7 @@ void Filter::init(FilterProps props, float time_offset) {
         // std::cout << i << '\t' << props.src[i]->props.scale << '\t' << weights[i] << '\t' << applied_value << '\t' << result_value << std::endl;
 
         weights_scales_old[i] = weights_scales[i];
-        weights_positions_old[i] = weights_positions[i];
+        weights_positions_old[i] = weights_positions[i].y >= 0 ? weights_positions[i] : target_pos;
         weights_scales[i] = {applied_value, target_scale};
         weights_positions[i] = target_pos;
 
@@ -628,7 +631,13 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
 
 void Filter::hide_layer(int layer) {
     for (auto &w : weights_di) {
-        if (w.layer == layer) w.hide();
+        if (layer < 0 || w.layer == layer) w.hide();
+    }
+}
+
+void Filter::show_layer(int layer) {
+    for (auto &w : weights_di) {
+        if (layer < 0 || w.layer == layer) w.show();
     }
 }
 
@@ -646,13 +655,13 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer, f
         float pos_x = (idx - dataLayer * valsPerLayer) / d.shape[2];
         float pos_y = (idx - dataLayer * valsPerLayer) % d.shape[2];
         float pos_z = dataLayer * SPACING * spacing_z;
-        std::cout << pos_x << '\t' << pos_y << '\t';
+        // std::cout << pos_x << '\t' << pos_y << '\t';
         pos_x -= width / 2 - 0.5;
         pos_y -= height / 2 - 0.5;
-        std::cout << pos_x << '\t' << pos_y << '\t';
+        // std::cout << pos_x << '\t' << pos_y << '\t';
         pos_x *= SPACING * spacing_x;
         pos_y *= SPACING * spacing_y;
-        std::cout << pos_x << '\t' << pos_y << std::endl;
+        // std::cout << pos_x << '\t' << pos_y << std::endl;
 
         DIProperties props = {
             .is_has_reference = false,

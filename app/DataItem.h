@@ -9,7 +9,7 @@
 #define SPACING 1.2
 #define MERGE_HEIGHT 3.0
 #define LAYER_HEIGHT 5.0
-#define MAX_POSITION 100
+#define MAX_POSITION 1000
 
 // Time constraints
 #define CONSTRUCTION_DELAY 1.5
@@ -146,6 +146,7 @@ public:
     void init_prt_curves();
     vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
     void hide_layer(int layer);
+    void show_layer(int layer);
 
     // The transition stage would vary between 0 and 5
     void setStage(float value);
