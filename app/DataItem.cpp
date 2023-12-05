@@ -280,15 +280,17 @@ void DISet::setScale(float scale, float scale_ref) {
     transform = components[0].transform;
 }
 
-void DISet::hide() {
+void DISet::hide(bool isPerm) {
     is_hidden = true;
+    if (isPerm) is_hidden_perm = true;
     for (DataItem &c : components) {
         c.hide();
     }
 }
 
-void DISet::show() {
+void DISet::show(bool isPerm) {
     is_hidden = false;
+    if (isPerm) is_hidden_perm = false;
     for (DataItem &c : components) {
         c.show();
     }
@@ -306,31 +308,28 @@ void DISet::hideStatic() {
     }
 }
 
-Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : renderer(renderer) {
-    npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
-    bias = bias_np.data[outLayer];
-
-    npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
-    width = weights_np.shape[2];
-    height = weights_np.shape[3];
+void Filter::_Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer) {
+    this->bias = bias;
+    width = weights_shape[2];
+    height = weights_shape[3];
     props.dst = 0;
 
     int idx = 0;
-    int itemsPerOutLayer = width * height * weights_np.shape[1];
+    int itemsPerOutLayer = width * height * weights_shape[1];
     int itemsPerInLayer = width * height;
     DIProperties props;
-    for (double value : weights_np.data) {
+    for (double value : weights_data) {
         int layer = idx / itemsPerOutLayer;
         // std::cout << idx << '\t' << layer << '\t' << value << std::endl;
-        if (layer % weights_np.shape[0] == outLayer) {
+        if (layer % weights_shape[0] == outLayer) {
             int layer_idx = idx % itemsPerOutLayer;
             weights.push_back(value);
             weights_scales.push_back({value, 1});
             weights_positions.push_back(vec3(-1));
             weights_scales_old.push_back({value, 1});
             weights_positions_old.push_back(vec3(-1));
-            float pos_x = layer_idx / weights_np.shape[3];
-            float pos_y = layer_idx % weights_np.shape[3];
+            float pos_x = layer_idx / weights_shape[3];
+            float pos_y = layer_idx % weights_shape[3];
             pos_x *= SPACING;
             pos_y *= SPACING;
 
@@ -349,6 +348,19 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
         .scale = (float)1.0
     };
     dst = new DataItem(renderer, props, renderer.indices);
+}
+
+Filter::Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer) 
+        : renderer(renderer), bias(bias) {
+    _Filter(renderer, weights_shape, weights_data, bias, outLayer);
+}
+
+Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : renderer(renderer) {
+    npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
+
+    npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
+    std::vector<unsigned long> weights_shape = {weights_np.shape[0], weights_np.shape[1], weights_np.shape[2], weights_np.shape[3]};
+    _Filter(renderer, weights_shape, weights_np.data, bias_np.data[outLayer], outLayer);
 }
 
 Filter::~Filter()
@@ -630,14 +642,18 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
 }
 
 void Filter::hide_layer(int layer) {
+    std::cout << "Hiding layer " << layer << std::endl;
     for (auto &w : weights_di) {
-        if (layer < 0 || w.layer == layer) w.hide();
+        if (layer < 0) w.hide();
+        else if (w.layer == layer) w.hide(true);
     }
 }
 
 void Filter::show_layer(int layer) {
+    std::cout << "Showing layer " << layer << std::endl;
     for (auto &w : weights_di) {
-        if (layer < 0 || w.layer == layer) w.show();
+        if (layer < 0 && !w.is_hidden_perm) w.show();
+        else if (w.layer == layer) w.show(true);
     }
 }
 

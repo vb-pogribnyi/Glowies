@@ -164,8 +164,10 @@ int main(int argc, char** argv)
   datas.push_back(Data(renderer, "input.npy", vec3(0, 0, 0), -1, stride_xy, stride_xy, stride_z));
   // std::cout << std::endl << "Data out" << std::endl;
   datas.push_back(Data(renderer, "out_conv1.npy", vec3(0, 2, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "out_pool1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
   
   layers.push_back(new Conv("Conv 1", renderer, datas[0], datas[1], "filter_1"));
+  layers.push_back(new AvgPool("Pool 1", renderer, datas[1], datas[2], 3));
   
 
   auto start = std::chrono::system_clock::now();

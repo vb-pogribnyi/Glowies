@@ -20,8 +20,15 @@ void Layer::update() {
     throw std::runtime_error("Calling plain Layer update");
 }
 
-Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std::string weights_path) 
-        : Layer(name, renderer), input(input), output(output) {
+Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, int stride)
+        : Layer(name, renderer), input(input), output(output), stride(stride) {
+    time = min_time;
+    filter_x_f = filter_x;
+    filter_y_f = filter_y;
+}
+
+Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std::string weights_path, int stride) 
+        : Layer(name, renderer), input(input), output(output), stride(stride) {
     for (int layer = 0; layer < output.depth; layer++) {
         filters.push_back(new Filter(renderer, weights_path, layer));
     }
@@ -37,26 +44,27 @@ void Conv::drawGui() {
     auto filter_pos = [&]() {
         filter_x_f = filter_x;
         filter_y_f = filter_y;
-        filterProps.src = input.getRange(filter_x, filter_x + active_filter->width - 1, filter_y, filter_y + active_filter->height - 1);
+        filterProps.src = input.getRange(filter_x * stride, filter_x * stride + active_filter->width - 1, 
+                filter_y * stride, filter_y * stride + active_filter->height - 1);
         filterProps.dst = output.getRange(filter_x, filter_x, filter_y, filter_y)[filter_idx];
         active_filter->init(filterProps, TIME_OFFSET);
         time = min_time;
         active_filter->setStage(time);
         renderer.resetFrame();
     };
-    if (ImGui::SliderInt("Filter index", &filter_idx, 0, output.depth - 1)) {
+    if (ImGui::SliderInt((std::string("Filter index##") + name).c_str(), &filter_idx, 0, output.depth - 1)) {
         active_filter->hide_layer(-1);
         active_filter = filters[filter_idx];
         active_filter->show_layer(-1);
         filter_pos();
     }
-    if (ImGui::SliderInt("Filter X", &filter_x, 0, input.width - active_filter->width)) {
+    if (ImGui::SliderInt((std::string("Filter X##") + name).c_str(), &filter_x, 0, (input.width - active_filter->width) / stride)) {
         filter_pos();
     }
-    if (ImGui::SliderInt("Filter Y", &filter_y, 0, input.height - active_filter->height)) {
+    if (ImGui::SliderInt((std::string("Filter Y##") + name).c_str(), &filter_y, 0, (input.height - active_filter->height) / stride)) {
         filter_pos();
     }
-    if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
+    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &time, min_time, max_time)) {
         active_filter->setStage(time);
         renderer.resetFrame();
     }
@@ -103,5 +111,37 @@ void Conv::update() {
             renderer.resetFrame();
         }
         is_pos_updated = false;
+    }
+}
+
+void Conv::setWeights(std::vector<unsigned long> weights_shape, std::vector<double> weights_data, std::vector<float> bias) {
+    for (int layer = 0; layer < output.depth; layer++) {
+        filters.push_back(new Filter(renderer, weights_shape, weights_data, bias[layer], layer));
+    }
+    if (filters.size() == 0) throw std::runtime_error("Filters are empty");
+    active_filter = filters[filter_idx];
+}
+
+AvgPool::AvgPool(std::string name, Renderer &renderer, Data &input, Data &output, int stride) : Conv(name, renderer, input, output, stride) {
+    if (input.depth != output.depth) {
+        throw std::runtime_error("For pooling layer, input and output depths must match.");
+    }
+    std::vector<unsigned long> weights_shape = {(unsigned long)output.depth, (unsigned long)input.depth, (unsigned long)stride, (unsigned long)stride};
+    std::vector<double> weights_data(output.depth * input.depth * stride * stride, 0);
+    for (int i = 0; i < weights_data.size(); i++) {
+        int layer_out = i / (input.depth * stride * stride);
+        int i_in = i - layer_out * input.depth * stride * stride;
+        int layer_in  = i_in / (stride * stride);
+        if (layer_in == layer_out) weights_data[i] = 1.0 / stride / stride;
+    }
+    setWeights(weights_shape, weights_data, std::vector<float>(output.depth, 0));
+}
+
+void AvgPool::init() {
+    Conv::init();
+    for (int f = 0; f < filters.size(); f++) {
+        for (int l = 0; l < output.depth; l++) {
+            if (f != l) filters[f]->hide_layer(l);
+        }
     }
 }

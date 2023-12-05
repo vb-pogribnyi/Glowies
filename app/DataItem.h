@@ -105,13 +105,14 @@ public:
     mat4 transform;
     int layer;
     bool is_hidden = false;
+    bool is_hidden_perm = false;
 
     DISet(Renderer &renderer, vec3 pos);
     void moveTo(vec3 position, bool is_hidden=false);
     std::vector<vec3> split(float n, float& w, float& h);
     void setScale(float scale, float scale_ref = 0.0f);
-    void hide();
-    void show();
+    void hide(bool isPerm=false);
+    void show(bool isPerm=false);
     void showStatic();
     void hideStatic();
 };
@@ -140,6 +141,8 @@ public:
     float time_offset = 0.0;
 
     Filter(Renderer& renderer, std::string weightsPath, int outLayer = 0);
+    Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer = 0);
+    void _Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer = 0);
     ~Filter();
     void init(FilterProps props, float time_offset);
     void init_di_curves();
