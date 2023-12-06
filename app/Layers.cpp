@@ -1,6 +1,7 @@
 #include "Layers.h"
 
-Layer::Layer(std::string name, Renderer &renderer) : name(name), renderer(renderer) {
+Layer::Layer(std::string name, Renderer &renderer, Data &input, Data &output) 
+        : name(name), renderer(renderer), input(input), output(output) {
     //
 }
 
@@ -9,26 +10,29 @@ void Layer::drawGui() {
 }
 
 void Layer::init() {
-    throw std::runtime_error("Calling plain Layer init");
+    // throw std::runtime_error("Calling plain Layer init");
+    std::cout << "Calling plain Layer init" << std::endl;
 }
 
 void Layer::setupSequencer(VRaF::Sequencer &sequencer) {
-    throw std::runtime_error("Calling plain Layer setupSequencer");
+    // throw std::runtime_error("Calling plain Layer setupSequencer");
+    std::cout << "Calling plain Layer setupSequencer" << std::endl;
 }
 
 void Layer::update() {
-    throw std::runtime_error("Calling plain Layer update");
+    // throw std::runtime_error("Calling plain Layer update");
+    std::cout << "Calling plain Layer update" << std::endl;
 }
 
 Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, int stride)
-        : Layer(name, renderer), input(input), output(output), stride(stride) {
+        : Layer(name, renderer, input, output), stride(stride) {
     time = min_time;
     filter_x_f = filter_x;
     filter_y_f = filter_y;
 }
 
 Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std::string weights_path, int stride) 
-        : Layer(name, renderer), input(input), output(output), stride(stride) {
+        : Layer(name, renderer, input, output), stride(stride) {
     for (int layer = 0; layer < output.depth; layer++) {
         filters.push_back(new Filter(renderer, weights_path, layer));
     }
@@ -144,4 +148,51 @@ void AvgPool::init() {
             if (f != l) filters[f]->hide_layer(l);
         }
     }
+}
+
+Transition::Transition(std::string name, Renderer &renderer, Data &input, Data &output) : Layer(name, renderer, input, output) {
+    if (input.items.size() != output.items.size())  throw std::runtime_error("For Tranlation, input and output size must be equal");
+
+    output.hide();
+    out_scales.reserve(output.items.size());
+    in_scales.reserve(input.items.size());
+    for (int i = 0; i < input.items.size(); i++) {
+        in_scales.push_back(input.items[i].props.scale);
+        out_scales.push_back(output.items[i].props.scale);
+    }
+    time = 0;
+}
+
+void Transition::drawGui() {
+    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &time, min_time, max_time)) {
+        if (time == max_time) {
+            output.show();
+            input.hide();
+        } else {
+            output.hide();
+            input.show();
+            float alpha = (time - min_time) / max_time;
+            for (int i = 0; i < input.items.size(); i++) {
+                input.items[i].setScale(alpha * out_scales[i] + (1 - alpha) * in_scales[i]);
+            }
+        }
+        renderer.resetFrame();
+    }
+}
+
+void Transition::setupSequencer(VRaF::Sequencer &sequencer) {
+    sequencer.track(name + ": Time", &time, [&]() {
+        if (time == max_time) {
+            output.show();
+            input.hide();
+        } else {
+            output.hide();
+            input.show();
+            float alpha = (time - min_time) / max_time;
+            for (int i = 0; i < input.items.size(); i++) {
+                input.items[i].setScale(alpha * out_scales[i] + (1 - alpha) * in_scales[i]);
+            }
+        }
+        renderer.resetFrame();
+    });
 }
