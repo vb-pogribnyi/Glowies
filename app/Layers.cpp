@@ -153,7 +153,6 @@ void AvgPool::init() {
 Transition::Transition(std::string name, Renderer &renderer, Data &input, Data &output) : Layer(name, renderer, input, output) {
     if (input.items.size() != output.items.size())  throw std::runtime_error("For Tranlation, input and output size must be equal");
 
-    output.hide();
     out_scales.reserve(output.items.size());
     in_scales.reserve(input.items.size());
     for (int i = 0; i < input.items.size(); i++) {
@@ -178,6 +177,10 @@ void Transition::drawGui() {
         }
         renderer.resetFrame();
     }
+}
+
+void Transition::init() {
+    output.hide();
 }
 
 void Transition::setupSequencer(VRaF::Sequencer &sequencer) {

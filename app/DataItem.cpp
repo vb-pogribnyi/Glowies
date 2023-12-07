@@ -572,9 +572,9 @@ void Filter::setStage(float value) {
     if (value > value_scale && value <= value_merge) {
         if (curves.size() == 0) init_prt_curves();
 
-        value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
+        float value_inner = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
         for(int i = 0; i < particles.size(); i++) {
-            float curve_value = value + curves[i].time_offset;
+            float curve_value = value_inner + curves[i].time_offset;
             float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
             // Only width should be scaled. DI height always remains 1.0
             vec3 scale(prt_w * dst->props.scale, prt_h * dst->props.scale, prt_w * dst->props.scale);
@@ -587,12 +587,20 @@ void Filter::setStage(float value) {
 
     // Showing static part when the construction is complete; showing bias
     if (value > value_merge && value <= value_bias) {
-        value = (value - value_merge) * bias_time;
-        float weighted_scale = value * (result_value + bias) + (1 - value) * result_value;
+        float value_inner = (value - value_merge) * bias_time;
+        float weighted_scale = value_inner * (result_value + bias) + (1 - value_inner) * result_value;
         dst->setScale(weighted_scale);
         dst->showStatic();
     } else {
         dst->hideStatic();
+    }
+
+    if (value >= value_bias) {
+        dst->hide();
+        props.dst->show();
+    } else {
+        dst->show();
+        props.dst->hide();
     }
 }
 
