@@ -4,6 +4,7 @@
 #include <vector>
 #include "Renderer.h"
 #include "npy.hpp"
+#include "imgui.h"
 
 // Distance constraints
 #define SPACING 1.2
@@ -159,11 +160,13 @@ class Data {
 public:
     int width, height, depth;
     std::vector<DataItem> items;
+    std::vector<unsigned int> layersVisibility;
     Data(Renderer& renderer, const std::string path, vec3 offset, int layer = -1, float spacing_x = 1, float spacing_y = 1, float spacing_z = 1);
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
     void hide();
     void show();
     void hide_layer(int layer);
+    void drawGui(int panelIdx = 0);
 };
 
 #endif

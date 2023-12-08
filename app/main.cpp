@@ -285,10 +285,32 @@ int main(int argc, char** argv)
         //   // f->setStage(time);
         //   renderer.resetFrame();
         // }
-        for (Layer* layer : layers) {
-          if (ImGui::CollapsingHeader(layer->name.c_str())) {
-            layer->drawGui();
+
+
+        if(ImGui::BeginTabBar("Content"))
+        {
+          if(ImGui::BeginTabItem("Data"))
+          {
+            int idx = 0;
+            for (Data &data : datas) {
+              if (ImGui::CollapsingHeader(std::to_string(idx++).c_str())) {
+                data.drawGui(idx);
+              }
+            }
+            ImGui::EndTabItem();
           }
+
+          if(ImGui::BeginTabItem("Layers"))
+          {
+            for (Layer* layer : layers) {
+              if (ImGui::CollapsingHeader(layer->name.c_str())) {
+                layer->drawGui();
+              }
+            }
+            ImGui::EndTabItem();
+          }
+
+          ImGui::EndTabBar();
         }
         // if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
         //       ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {

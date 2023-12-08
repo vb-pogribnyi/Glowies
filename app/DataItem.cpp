@@ -700,6 +700,7 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer, f
     }
     idx++;
   }
+  for (int i = 0; i < depth; i++) layersVisibility.push_back(1);
 }
 
 std::vector<DataItem*> Data::getRange(int x1, int x2, int y1, int y2) {
@@ -737,5 +738,23 @@ void Data::show() {
 void Data::hide_layer(int layer) {
     for (DataItem &i : items) {
         if (i.layer == layer) i.hide();
+    }
+}
+
+void Data::drawGui(int panelIdx) {
+    bool need_update = false;
+    for (int i = 0; i < layersVisibility.size(); i++) {
+        bool a = layersVisibility[i] > 0;
+
+        if (ImGui::Checkbox((std::string("Hello##") + std::to_string(i) + "_" + std::to_string(panelIdx)).c_str(), &a)) {
+            layersVisibility[i] = a ? 1 : 0;
+            need_update = true;
+        }
+    }
+    if (need_update) {
+        show();
+        for (int i = 0; i < layersVisibility.size(); i++) {
+            if (layersVisibility[i] == 0) hide_layer(i);
+        }
     }
 }
