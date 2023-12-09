@@ -161,27 +161,27 @@ int main(int argc, char** argv)
   // std::cout << "Data input" << std::endl;
   int stride_xy = 8;
   int stride_z = 4;
-  datas.push_back(Data(renderer, "input.npy", vec3(0, 0, 0), -1, stride_xy, stride_xy, stride_z));
-  datas.push_back(Data(renderer, "out_conv1.npy", vec3(0, 2, 0), -1, stride_xy, stride_xy, stride_z));
-  datas.push_back(Data(renderer, "out_pool1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
-  datas.push_back(Data(renderer, "out_acti1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
-  datas.push_back(Data(renderer, "out_conv2.npy", vec3(0, 70, 0), -1, stride_xy, stride_xy, stride_z));
-  datas.push_back(Data(renderer, "out_pool2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
-  datas.push_back(Data(renderer, "out_acti2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
-  datas.push_back(Data(renderer, "out_dense1.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
-  datas.push_back(Data(renderer, "out_dense1a.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
-  datas.push_back(Data(renderer, "out_dense2.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
-  datas.push_back(Data(renderer, "out_dense2a.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/input.npy", vec3(0, 0, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_conv1.npy", vec3(0, 2, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_pool1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
+  datas.push_back(Data(renderer, "data/out_acti1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
+  datas.push_back(Data(renderer, "data/out_conv2.npy", vec3(0, 70, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_pool2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_acti2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_dense1.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense1a.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense2.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense2a.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
   
-  layers.push_back(new Conv("Conv 1", renderer, datas[0], datas[1], "filter_1"));
+  layers.push_back(new Conv("Conv 1", renderer, datas[0], datas[1], "data/filter_1"));
   layers.push_back(new AvgPool("Pool 1", renderer, datas[1], datas[2], 3));
   layers.push_back(new Transition("Activation 1", renderer, datas[2], datas[3]));
-  layers.push_back(new Conv("Conv 2", renderer, datas[3], datas[4], "filter_2"));
+  layers.push_back(new Conv("Conv 2", renderer, datas[3], datas[4], "data/filter_2"));
   layers.push_back(new AvgPool("Pool 2", renderer, datas[4], datas[5], 2));
   layers.push_back(new Transition("Activation 2", renderer, datas[5], datas[6]));
-  layers.push_back(new Conv("Dense 1", renderer, datas[6], datas[7], "dense_1"));
+  layers.push_back(new Conv("Dense 1", renderer, datas[6], datas[7], "data/dense_1"));
   layers.push_back(new Transition("Activation d1", renderer, datas[7], datas[8]));
-  layers.push_back(new Conv("Dense 2", renderer, datas[8], datas[9], "dense_2"));
+  layers.push_back(new Conv("Dense 2", renderer, datas[8], datas[9], "data/dense_2"));
   layers.push_back(new Transition("Activation d2", renderer, datas[9], datas[10]));
   
 
@@ -260,7 +260,7 @@ int main(int argc, char** argv)
   for (Layer* l : layers) l->setupSequencer(sequencer);
   sequencer.track("Camera pos", &renderer.camera.pos, updateCameraPos);
   sequencer.track("Camera tgt", &renderer.camera.tgt, updateCameraPos);
-  sequencer.loadFile("sequences.json");
+  sequencer.loadFile("data/sequences.json");
   // Main loop
   float moveSpeed = 15.8;
   float lastTime = (float)glfwGetTime();
