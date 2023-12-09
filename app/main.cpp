@@ -291,6 +291,18 @@ int main(int argc, char** argv)
             }
           }
         }
+        bool temp = renderer.m_pcRay.debugging_mode == eHeatmap;
+        if (ImGui::Checkbox("Time heatmap", &temp)) {
+          if (temp) {
+            renderer.m_pcRay.debugging_mode = eHeatmap;
+          } else {
+            renderer.m_pcRay.debugging_mode = 0;
+          } 
+        }
+        int maxHeatmap = renderer.m_pcRay.maxHeatmap / 1000000;
+        if (ImGui::SliderInt("Max heatmap", &maxHeatmap, 0, 100)) {
+          renderer.m_pcRay.maxHeatmap = maxHeatmap * 1000000;
+        }
 
         renderUI(renderer);
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);

@@ -187,5 +187,5 @@ public:
   VkStridedDeviceAddressRegionKHR m_callRegion{};
 
   // Push constant for ray tracer
-  PushConstantRay m_pcRay{};
+  PushConstantRay m_pcRay{.debugging_mode = 0, .minHeatmap = 0, .maxHeatmap = 3000000};
 };

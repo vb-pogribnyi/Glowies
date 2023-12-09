@@ -823,12 +823,12 @@ void Renderer::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clea
   m_pcRay.maxSamples = 80;             // How many samples to do per render
   m_pcRay.fireflyClampThreshold = 1.0;  // to cut fireflies
   m_pcRay.hdrMultiplier = 1;          // To brightening the scene
-  m_pcRay.debugging_mode = 0;         // See DebugMode
+  // m_pcRay.debugging_mode = 0;         // See DebugMode
   m_pcRay.size = {m_size.width, m_size.height};                   // rendering size
-  m_pcRay.minHeatmap = 0;             // Debug mode - heat map
-  m_pcRay.maxHeatmap = 3000000;
+  // m_pcRay.minHeatmap = 0;             // Debug mode - heat map
+  // m_pcRay.maxHeatmap = 3000000;
 
-  m_pcRay.debugging_mode = eRayDir;
+  // m_pcRay.debugging_mode = eRayDir;
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
