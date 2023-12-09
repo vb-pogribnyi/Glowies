@@ -272,7 +272,7 @@ std::vector<vec3> DISet::split(float n, float& w, float& h) {
 void DISet::setScale(float scale, float scale_ref) {
     if (this->is_hidden) return;
     for (DataItem &c : components) {
-        c.setScale(scale, scale_ref);
+        if (c.props.scale != scale || c.props.scale_ref != scale_ref) c.setScale(scale, scale_ref);
     }
     transform = components[0].transform;
 }
@@ -568,6 +568,10 @@ void Filter::setStage(float value) {
             float show_transition = curve_value / ANIMATION_DURATION * 100;
             particles[i]->moveTo(curves[i].eval(curve_value / ANIMATION_DURATION), stage, scale, show_transition); 
         }
+    } else {
+        curves.clear();
+        for (Particle *p : particles) delete p;
+        particles.clear();
     }
 
     // Showing static part when the construction is complete; showing bias
