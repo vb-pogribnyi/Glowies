@@ -51,7 +51,7 @@ static void onErrorCallback(int error, const char* description)
 // Extra UI
 void renderUI(Renderer& renderer)
 {
-  ImGuiH::CameraWidget();
+  // ImGuiH::CameraWidget();
 }
 
 //////////////////////////////////////////////////////////////////////////

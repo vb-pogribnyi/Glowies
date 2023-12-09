@@ -21,14 +21,24 @@ void Layer::setupSequencer(VRaF::Sequencer &sequencer) {
 
 void Layer::update() {
     // throw std::runtime_error("Calling plain Layer update");
-    std::cout << "Calling plain Layer update" << std::endl;
+    // std::cout << "Calling plain Layer update" << std::endl;
+}
+
+void Conv::_Conv() {
+    time = min_time;
+    filter_x_f = filter_x;
+    filter_y_f = filter_y;
+    for (int i = 0; i < input.depth; i++) {
+        in_lrs_visible |= 1 << i;
+    }
+    for (int i = 0; i < output.depth; i++) {
+        out_lrs_visible |= 1 << i;
+    }
 }
 
 Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, int stride)
         : Layer(name, renderer, input, output), stride(stride) {
-    time = min_time;
-    filter_x_f = filter_x;
-    filter_y_f = filter_y;
+    _Conv();
 }
 
 Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std::string weights_path, int stride) 
@@ -39,9 +49,7 @@ Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std:
     if (filters.size() == 0) throw std::runtime_error("Filters are empty");
     active_filter = filters[filter_idx];
 
-    time = min_time;
-    filter_x_f = filter_x;
-    filter_y_f = filter_y;
+    _Conv();
 }
 
 void Conv::drawGui() {
@@ -72,6 +80,27 @@ void Conv::drawGui() {
         active_filter->setStage(time);
         renderer.resetFrame();
     }
+    ImGui::Checkbox((std::string("Visible##") + name).c_str(), &should_be_visible);
+    ImGui::Text("Input layers");
+    for (int i = 0; i < input.depth; i++) {
+        bool temp = (in_lrs_visible  & (1 << i)) > 0;
+        if (ImGui::Checkbox((std::string("Layer ") + std::to_string(i) + "##" + name + "_" + std::to_string(i)).c_str(), &temp)) {
+            if (temp) {
+                in_lrs_visible |= 1 << i;
+                input.show_layer(i);
+                active_filter->show_layer(i);
+            } else {
+                in_lrs_visible &= ~(1 << i);
+                input.hide_layer(i);
+                active_filter->hide_layer(i);
+            }
+            std::cout << in_lrs_visible << std::endl;
+        }
+    }
+    ImGui::Text("Output layers");
+    // for (int i = 0; i < output.depth; i++) {
+    //     out_lrs_visible |= 1 << i;
+    // }
 }
 
 void Conv::init() {
@@ -115,6 +144,11 @@ void Conv::update() {
             renderer.resetFrame();
         }
         is_pos_updated = false;
+    }
+    if (should_be_visible != is_visible) {
+        is_visible = should_be_visible;
+        if (is_visible) active_filter->show_layer(-1);
+        else active_filter->hide_layer(-1);
     }
 }
 

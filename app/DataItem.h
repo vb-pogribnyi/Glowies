@@ -166,6 +166,7 @@ public:
     void hide();
     void show();
     void hide_layer(int layer);
+    void show_layer(int layer);
     void drawGui(int panelIdx = 0);
 };
 

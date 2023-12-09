@@ -27,6 +27,8 @@ public:
 class Conv : public Layer
 {
 public:
+    int in_lrs_visible = 0, out_lrs_visible = 0;
+    bool is_visible = true, should_be_visible = false;
     std::vector<Filter*> filters;
     Filter *active_filter;
     int filter_x = 0, filter_y = 0;
@@ -39,6 +41,7 @@ public:
 
     Conv(std::string name, Renderer &renderer, Data &input, Data &output, std::string weights_path, int stride=1);
     Conv(std::string name, Renderer &renderer, Data &input, Data &output, int stride=1);
+    void _Conv();
     void setWeights(std::vector<unsigned long> weights_shape, std::vector<double> weights_data, std::vector<float> bias);
     virtual void drawGui() override;
     virtual void init() override;
