@@ -177,6 +177,9 @@ int main(int argc, char** argv)
   layers.push_back(new AvgPool("Pool 1", renderer, datas[1], datas[2], 3));
   layers.push_back(new Transition("Activation 1", renderer, datas[2], datas[3]));
   layers.push_back(new Conv("Conv 2", renderer, datas[3], datas[4], "data/filter_2"));
+
+  Layer* conv2 = layers[layers.size() - 1];
+
   layers.push_back(new AvgPool("Pool 2", renderer, datas[4], datas[5], 2));
   layers.push_back(new Transition("Activation 2", renderer, datas[5], datas[6]));
   layers.push_back(new Conv("Dense 1", renderer, datas[6], datas[7], "data/dense_1"));
@@ -207,6 +210,9 @@ int main(int argc, char** argv)
   nvmath::vec4f clearColor = nvmath::vec4f(1, 1, 1, 1.00f);
 
   bool          useRaytracer = false;
+  // for (LayerState state : *(conv2)) {
+  //   std::cout << state.x << ' ' << state.y << ' ' << state.z << std::endl;
+  // }
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
@@ -346,6 +352,14 @@ int main(int argc, char** argv)
           //     }
           //   }
           // }
+
+          sequencer.clear();
+          for (Layer* layer : layers) {
+            std::cout << layer->name << std::endl;
+            for (LayerState state : *layer) {
+              std::cout << layer->name << ": " << state.x << ' ' << state.y << ' ' << state.z << std::endl;
+            }
+          }
         }
 
         renderUI(renderer);

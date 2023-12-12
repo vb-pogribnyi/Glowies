@@ -24,6 +24,62 @@ void Layer::update() {
     // std::cout << "Calling plain Layer update" << std::endl;
 }
 
+LayerIterator::LayerIterator(Layer* target, int width, int height, int depth) 
+        : target(target), width(width), height(height), depth(depth) {
+    state.x = 0;
+    state.y = 0;
+    state.z = 0;
+    x = y = z = 0;
+}
+
+LayerIterator::LayerIterator(Layer* target, int x, int y, int z, int width, int height, int depth) 
+        : target(target), x(x), y(y), z(z), width(width), height(height), depth(depth) {
+    state.x = x;
+    state.y = y;
+    state.z = z;
+}
+
+LayerIterator LayerIterator::operator++() {
+    y++;
+    if (y >= height) {
+        x++;
+        y = 0;
+    }
+    if (x >= width) {
+        z++;
+        x = 0;
+    }
+    // std::cout << "The operator " << x << ' ' << y << std::endl;
+    state.x = x;
+    state.y = y;
+    state.z = z;
+    return *this;
+}
+
+LayerIterator LayerIterator::operator++(int) {
+    LayerIterator result = *this;
+    ++(*this);
+    return result;
+}
+
+void Layer::toMax() {
+    time = min_time;
+    update();
+}
+
+void Layer::toMin() {
+    time = max_time;
+    update();
+}
+
+LayerIterator Layer::begin() {
+    return LayerIterator(this, output.width, output.height, output.depth);
+}
+
+LayerIterator Layer::end() {
+    return LayerIterator(this, 0, 0, output.depth, output.width, output.height, output.depth);
+}
+
 void Conv::_Conv() {
     time = min_time;
     filter_x_f = filter_x;
@@ -232,4 +288,12 @@ void Transition::setupSequencer(VRaF::Sequencer &sequencer) {
         }
         renderer.resetFrame();
     });
+}
+
+LayerIterator Transition::begin() {
+    return LayerIterator(this, 1, 1, output.depth);
+}
+
+LayerIterator Transition::end() {
+    return LayerIterator(this, 0, 0, output.depth, 1, 1, output.depth);
 }
