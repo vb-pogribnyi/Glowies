@@ -14,6 +14,8 @@ class AvgPool;
 struct LayerState
 {
     int x = 0, y = 0, z = 0;
+    int step = 0;
+    int nsteps;
     bool operator==(const LayerState other) const {return x == other.x && y == other.y && z == other.z;}
     bool operator!=(const LayerState other) const {return x != other.x || y != other.y || z != other.z;}
 };
@@ -57,6 +59,8 @@ public:
     virtual void update();
     virtual void toMax();
     virtual void toMin();
+    virtual float getMaxTime();
+    virtual float getMinTime();
 };
 
 class Conv : public Layer
@@ -81,6 +85,8 @@ public:
     virtual void init() override;
     virtual void setupSequencer(VRaF::Sequencer &sequencer) override;
     virtual void update() override;
+    virtual float getMaxTime();
+    virtual float getMinTime();
 };
                                         
 class Transition : public Layer

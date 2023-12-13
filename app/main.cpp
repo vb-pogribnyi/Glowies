@@ -354,10 +354,22 @@ int main(int argc, char** argv)
           // }
 
           sequencer.clear();
+          int step_global = 0;
           for (Layer* layer : layers) {
+            int step_layer = 0;
+            int step_start = step_global;
             std::cout << layer->name << std::endl;
             for (LayerState state : *layer) {
               std::cout << layer->name << ": " << state.x << ' ' << state.y << ' ' << state.z << std::endl;
+              int nsteps = state.nsteps * (FRAMES_PER_CONV_STEP + 1);
+              for (int step = 0; step <= FRAMES_PER_CONV_STEP; step++) {
+                float time = (float)step / FRAMES_PER_CONV_STEP * (layer->getMaxTime() - layer->getMinTime()) + layer->getMinTime();
+                sequencer.addKeyframe((layer->name + std::string(": X")).c_str(), (float)step_layer / nsteps, nsteps, state.x, step_start);
+                sequencer.addKeyframe((layer->name + std::string(": Y")).c_str(), (float)step_layer / nsteps, nsteps, state.y, step_start);
+                sequencer.addKeyframe((layer->name + std::string(": Time")).c_str(), (float)step_layer / nsteps, nsteps, time, step_start);
+                step_layer++;
+                step_global++;
+              }
             }
           }
         }

@@ -30,6 +30,7 @@ LayerIterator::LayerIterator(Layer* target, int width, int height, int depth)
     state.y = 0;
     state.z = 0;
     x = y = z = 0;
+    state.nsteps = width * height * depth;
 }
 
 LayerIterator::LayerIterator(Layer* target, int x, int y, int z, int width, int height, int depth) 
@@ -37,6 +38,7 @@ LayerIterator::LayerIterator(Layer* target, int x, int y, int z, int width, int 
     state.x = x;
     state.y = y;
     state.z = z;
+    state.nsteps = width * height * depth;
 }
 
 LayerIterator LayerIterator::operator++() {
@@ -53,6 +55,7 @@ LayerIterator LayerIterator::operator++() {
     state.x = x;
     state.y = y;
     state.z = z;
+    state.step++;
     return *this;
 }
 
@@ -70,6 +73,14 @@ void Layer::toMax() {
 void Layer::toMin() {
     time = max_time;
     update();
+}
+
+float Layer::getMaxTime() {
+    return max_time;
+}
+
+float Layer::getMinTime() {
+    return min_time;
 }
 
 LayerIterator Layer::begin() {
@@ -214,6 +225,14 @@ void Conv::setWeights(std::vector<unsigned long> weights_shape, std::vector<doub
     }
     if (filters.size() == 0) throw std::runtime_error("Filters are empty");
     active_filter = filters[filter_idx];
+}
+
+float Conv::getMaxTime() {
+    return max_time;
+}
+
+float Conv::getMinTime() {
+    return min_time;
 }
 
 AvgPool::AvgPool(std::string name, Renderer &renderer, Data &input, Data &output, int stride) : Conv(name, renderer, input, output, stride) {

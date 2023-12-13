@@ -105,7 +105,7 @@ namespace VRaF {
 		// If the event contains multiple targets, all of them will be recorded
 		void record(float* target);
 		void clear();
-		void addKeyframe(std::string label, float step, int nsteps, float value);
+		void addKeyframe(std::string label, float step, int nsteps, float value, int step_start=0);
 		void track(std::string label, float* value);
 		void track(std::string label, vec2* value);
 		void track(std::string label, vec3* value);

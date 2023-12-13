@@ -955,15 +955,15 @@ namespace VRaF {
 		}
 	}
 
-	void Sequencer::addKeyframe(std::string label, float step, int nsteps, float value) {
+	void Sequencer::addKeyframe(std::string label, float step, int nsteps, float value, int step_start) {
 		for (Track &t : tracks) {
 			if (t.label != label) continue;
 
-			t.events[0].time = 0;
+			t.events[0].time = step_start;
 			t.events[0].duration = nsteps;
 			t.events[0].keyframes.push_back({step, value});
-			state.range[0] = std::min((float)state.range[0], step * nsteps + 1);
-			state.range[1] = std::max((float)state.range[1], step * nsteps + 1);
+			state.range[0] = std::min((float)state.range[0], step_start + step * nsteps + 1);
+			state.range[1] = std::max((float)state.range[1], step_start + step * nsteps + 1);
 			// std::cout << "Adding key: " << step << ' ' << value << std::endl;
 		}
 	}
