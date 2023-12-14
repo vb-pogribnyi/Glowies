@@ -19,58 +19,20 @@ void Layer::setupSequencer(VRaF::Sequencer &sequencer) {
     std::cout << "Calling plain Layer setupSequencer" << std::endl;
 }
 
-void Layer::update() {
+bool Layer::update() {
     // throw std::runtime_error("Calling plain Layer update");
     // std::cout << "Calling plain Layer update" << std::endl;
-}
-
-LayerIterator::LayerIterator(Layer* target, int width, int height, int depth) 
-        : target(target), width(width), height(height), depth(depth) {
-    state.x = 0;
-    state.y = 0;
-    state.z = 0;
-    x = y = z = 0;
-    state.nsteps = width * height * depth;
-}
-
-LayerIterator::LayerIterator(Layer* target, int x, int y, int z, int width, int height, int depth) 
-        : target(target), x(x), y(y), z(z), width(width), height(height), depth(depth) {
-    state.x = x;
-    state.y = y;
-    state.z = z;
-    state.nsteps = width * height * depth;
-}
-
-LayerIterator LayerIterator::operator++() {
-    y++;
-    if (y >= height) {
-        x++;
-        y = 0;
-    }
-    if (x >= width) {
-        z++;
-        x = 0;
-    }
-    // std::cout << "The operator " << x << ' ' << y << std::endl;
-    state.x = x;
-    state.y = y;
-    state.z = z;
-    state.step++;
-    return *this;
-}
-
-LayerIterator LayerIterator::operator++(int) {
-    LayerIterator result = *this;
-    ++(*this);
-    return result;
+    return false;
 }
 
 void Layer::toMax() {
+    std::cout << "Calling " << name << " toMax" << std::endl;
     time = min_time;
     update();
 }
 
 void Layer::toMin() {
+    std::cout << "Calling " << name << " toMin" << std::endl;
     time = max_time;
     update();
 }
@@ -83,12 +45,16 @@ float Layer::getMinTime() {
     return min_time;
 }
 
-LayerIterator Layer::begin() {
-    return LayerIterator(this, output.width, output.height, output.depth);
+int Layer::getWidth() {
+    return output.width;
 }
 
-LayerIterator Layer::end() {
-    return LayerIterator(this, 0, 0, output.depth, output.width, output.height, output.depth);
+int Layer::getHeight() {
+    return output.height;
+}
+
+int Layer::getDepth() {
+    return output.depth;
 }
 
 void Conv::_Conv() {
@@ -195,7 +161,8 @@ void Conv::setupSequencer(VRaF::Sequencer &sequencer) {
     sequencer.track(name + ": Y", &filter_y_f, [&]() {is_pos_updated = true;});
 }
 
-void Conv::update() {
+bool Conv::update() {
+    bool result = false;
     if(is_pos_updated) {
         if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
             filter_x = (int)filter_x_f;
@@ -211,12 +178,16 @@ void Conv::update() {
             renderer.resetFrame();
         }
         is_pos_updated = false;
+        result = true;
     }
     if (should_be_visible != is_visible) {
         is_visible = should_be_visible;
         if (is_visible) active_filter->show_layer(-1);
         else active_filter->hide_layer(-1);
+        result = true;
     }
+
+    return result;
 }
 
 void Conv::setWeights(std::vector<unsigned long> weights_shape, std::vector<double> weights_data, std::vector<float> bias) {
@@ -309,10 +280,10 @@ void Transition::setupSequencer(VRaF::Sequencer &sequencer) {
     });
 }
 
-LayerIterator Transition::begin() {
-    return LayerIterator(this, 1, 1, output.depth);
+int Transition::getWidth() {
+    return 1;
 }
 
-LayerIterator Transition::end() {
-    return LayerIterator(this, 0, 0, output.depth, 1, 1, output.depth);
+int Transition::getHeight() {
+    return 1;
 }

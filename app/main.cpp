@@ -276,7 +276,19 @@ int main(int argc, char** argv)
       //   updateConvLocation();
       //   pending_update = 0;
       // }
-      for (Layer* layer : layers) layer->update();
+      for (Layer* layer : layers) {
+        if (layer->update()) {
+          bool is_pre = true;
+          for (Layer* layer_other : layers) {
+            if (layer_other == layer) {
+              is_pre = false;
+              continue;
+            }
+            if (is_pre) layer_other->toMax();
+            else layer_other->toMin();
+          }
+        }
+      }
 
       // Start the Dear ImGui frame
       ImGui_ImplGlfw_NewFrame();
@@ -356,18 +368,22 @@ int main(int argc, char** argv)
           sequencer.clear();
           int step_global = 0;
           for (Layer* layer : layers) {
-            int step_layer = 0;
             int step_start = step_global;
             std::cout << layer->name << std::endl;
-            for (LayerState state : *layer) {
-              std::cout << layer->name << ": " << state.x << ' ' << state.y << ' ' << state.z << std::endl;
-              int nsteps = state.nsteps * (FRAMES_PER_CONV_STEP + 1);
-              for (int step = 0; step <= FRAMES_PER_CONV_STEP; step++) {
-                float time = (float)step / FRAMES_PER_CONV_STEP * (layer->getMaxTime() - layer->getMinTime()) + layer->getMinTime();
-                sequencer.addKeyframe((layer->name + std::string(": X")).c_str(), (float)step_layer / nsteps, nsteps, state.x, step_start);
-                sequencer.addKeyframe((layer->name + std::string(": Y")).c_str(), (float)step_layer / nsteps, nsteps, state.y, step_start);
+            int nsteps_layer = layer->getWidth() * layer->getHeight() * layer->getDepth();
+            for (int step = 0; step < nsteps_layer; step++) {
+              int x = (step / layer->getHeight()) % layer->getWidth();
+              int y = step % layer->getHeight();
+              int z = layer->getHeight() / layer->getWidth();
+ 
+              // std::cout << layer->name << ": " << x << ' ' << y << ' ' << z << std::endl;
+              int nsteps = nsteps_layer * (FRAMES_PER_CONV_STEP + 1);
+              for (int frame = 0; frame <= FRAMES_PER_CONV_STEP; frame++) {
+                int step_layer = step * (FRAMES_PER_CONV_STEP + 1) + frame;
+                float time = (float)frame / FRAMES_PER_CONV_STEP * (layer->getMaxTime() - layer->getMinTime()) + layer->getMinTime();
+                sequencer.addKeyframe((layer->name + std::string(": X")).c_str(), (float)step_layer / nsteps, nsteps, x, step_start);
+                sequencer.addKeyframe((layer->name + std::string(": Y")).c_str(), (float)step_layer / nsteps, nsteps, y, step_start);
                 sequencer.addKeyframe((layer->name + std::string(": Time")).c_str(), (float)step_layer / nsteps, nsteps, time, step_start);
-                step_layer++;
                 step_global++;
               }
             }

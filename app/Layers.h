@@ -11,38 +11,19 @@ class Conv;
 class Transition;
 class AvgPool;
 
-struct LayerState
+class LayerState
 {
     int x = 0, y = 0, z = 0;
-    int step = 0;
-    int nsteps;
+    float time = 0;
+    bool is_visible;
+    std::vector<bool> inputsVisible;
     bool operator==(const LayerState other) const {return x == other.x && y == other.y && z == other.z;}
     bool operator!=(const LayerState other) const {return x != other.x || y != other.y || z != other.z;}
-};
-
-class LayerIterator
-{
-public:
-    LayerIterator(Layer* target, int width, int height, int depth);
-    LayerIterator(Layer* target, int x, int y, int z, int width, int height, int depth);
-    bool operator==(const LayerIterator& other) const {return state == other.state && target == other.target;}
-    bool operator!=(const LayerIterator& other) const {return state != other.state || target != other.target;}
-    LayerIterator operator++();
-    LayerIterator operator++(int);
-    LayerState operator*() {return state;}
-private:
-    LayerState state;
-    int x, y, z, width, height, depth;
-    Layer* target;
 };
 
 class Layer
 {
 public:
-    friend class LayerIterator;
-    virtual LayerIterator begin();
-    virtual LayerIterator end();
-
     std::string name;
     Renderer &renderer;
     const float max_time = 1;
@@ -56,11 +37,14 @@ public:
     virtual void drawGui();
     virtual void init();
     virtual void setupSequencer(VRaF::Sequencer &sequencer);
-    virtual void update();
+    virtual bool update();
     virtual void toMax();
     virtual void toMin();
     virtual float getMaxTime();
     virtual float getMinTime();
+    virtual int getWidth();
+    virtual int getHeight();
+    virtual int getDepth();
 };
 
 class Conv : public Layer
@@ -84,7 +68,7 @@ public:
     virtual void drawGui() override;
     virtual void init() override;
     virtual void setupSequencer(VRaF::Sequencer &sequencer) override;
-    virtual void update() override;
+    virtual bool update() override;
     virtual float getMaxTime();
     virtual float getMinTime();
 };
@@ -92,16 +76,15 @@ public:
 class Transition : public Layer
 {
 public:
-    virtual LayerIterator begin();
-    virtual LayerIterator end();
-
     std::vector<float> in_scales;
     std::vector<float> out_scales;
 
     Transition(std::string name, Renderer &renderer, Data &input, Data &output);
     virtual void drawGui() override;                                          
     virtual void setupSequencer(VRaF::Sequencer &sequencer) override;  
-    virtual void init();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+    virtual void init();         
+    virtual int getWidth();
+    virtual int getHeight();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
 };
 
 class AvgPool : public Conv
@@ -110,10 +93,5 @@ public:
     AvgPool(std::string name, Renderer &renderer, Data &input, Data &output, int stride);
     virtual void init() override;
 };
-
-// class Linear : public Conv
-// {
-//     //
-// };                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 #endif
