@@ -650,7 +650,7 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
 }
 
 void Filter::hide_layer(int layer) {
-    // std::cout << "Hiding layer " << layer << std::endl;
+    std::cout << "Hiding layer " << layer << std::endl;
     for (auto &w : weights_di) {
         if (layer < 0) w.hide();
         else if (w.layer == layer) w.hide(true);
@@ -658,7 +658,7 @@ void Filter::hide_layer(int layer) {
 }
 
 void Filter::show_layer(int layer) {
-    // std::cout << "Showing layer " << layer << std::endl;
+    std::cout << "Showing layer " << layer << std::endl;
     for (auto &w : weights_di) {
         if (layer < 0 && !w.is_hidden_perm) w.show();
         else if (w.layer == layer) w.show(true);

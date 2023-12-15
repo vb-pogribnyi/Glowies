@@ -2,7 +2,17 @@
 
 Layer::Layer(std::string name, Renderer &renderer, Data &input, Data &output) 
         : name(name), renderer(renderer), input(input), output(output) {
-    //
+    // NewState and State values differ, so that an update is triggered immideately
+    state.time = 1;
+    newState.time = 0;
+    state.pos = {1, 1, 1};
+    newState.pos = {0, 0, 0};
+    state.is_visible = true;
+    newState.is_visible = false;
+    for (int i = 0; i < input.depth; i++) {
+        state.inputsVisible.push_back(false);
+        newState.inputsVisible.push_back(true);
+    }
 }
 
 void Layer::drawGui() {
@@ -26,13 +36,13 @@ bool Layer::update() {
 }
 
 void Layer::toMax() {
-    std::cout << "Calling " << name << " toMax" << std::endl;
+    // std::cout << "Calling " << name << " toMax" << std::endl;
     time = min_time;
     update();
 }
 
 void Layer::toMin() {
-    std::cout << "Calling " << name << " toMin" << std::endl;
+    // std::cout << "Calling " << name << " toMin" << std::endl;
     time = max_time;
     update();
 }
@@ -59,14 +69,14 @@ int Layer::getDepth() {
 
 void Conv::_Conv() {
     time = min_time;
-    filter_x_f = filter_x;
-    filter_y_f = filter_y;
-    for (int i = 0; i < input.depth; i++) {
-        in_lrs_visible |= 1 << i;
-    }
-    for (int i = 0; i < output.depth; i++) {
-        out_lrs_visible |= 1 << i;
-    }
+    newState.pos.x = filter_x;
+    newState.pos.y = filter_y;
+    // for (int i = 0; i < input.depth; i++) {
+    //     in_lrs_visible |= 1 << i;
+    // }
+    // for (int i = 0; i < output.depth; i++) {
+    //     out_lrs_visible |= 1 << i;
+    // }
 }
 
 Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, int stride)
@@ -87,8 +97,8 @@ Conv::Conv(std::string name, Renderer &renderer, Data &input, Data &output, std:
 
 void Conv::drawGui() {
     auto filter_pos = [&]() {
-        filter_x_f = filter_x;
-        filter_y_f = filter_y;
+        newState.pos.x = filter_x;
+        newState.pos.y = filter_y;
         filterProps.src = input.getRange(filter_x * stride, filter_x * stride + active_filter->width - 1, 
                 filter_y * stride, filter_y * stride + active_filter->height - 1);
         filterProps.dst = output.getRange(filter_x, filter_x, filter_y, filter_y)[filter_idx];
@@ -113,21 +123,17 @@ void Conv::drawGui() {
         active_filter->setStage(time);
         renderer.resetFrame();
     }
-    ImGui::Checkbox((std::string("Visible##") + name).c_str(), &should_be_visible);
+    ImGui::Checkbox((std::string("Visible##") + name).c_str(), &newState.is_visible);
     ImGui::Text("Input layers");
     for (int i = 0; i < input.depth; i++) {
-        bool temp = (in_lrs_visible  & (1 << i)) > 0;
+        bool temp = newState.inputsVisible[i];
         if (ImGui::Checkbox((std::string("Layer ") + std::to_string(i) + "##" + name + "_" + std::to_string(i)).c_str(), &temp)) {
-            if (temp) {
-                in_lrs_visible |= 1 << i;
-                input.show_layer(i);
-                active_filter->show_layer(i);
-            } else {
-                in_lrs_visible &= ~(1 << i);
-                input.hide_layer(i);
-                active_filter->hide_layer(i);
-            }
-            std::cout << in_lrs_visible << std::endl;
+            if (temp) newState.inputsVisible[i] = true;
+            else newState.inputsVisible[i] = false;
+
+            std::cout << "Inputs visible: ";
+            for (bool v : newState.inputsVisible) std::cout << v;
+            std::cout << std::endl;
         }
     }
     ImGui::Text("Output layers");
@@ -157,18 +163,18 @@ void Conv::setupSequencer(VRaF::Sequencer &sequencer) {
         renderer.resetFrame();
     });
 
-    sequencer.track(name + ": X", &filter_x_f, [&]() {is_pos_updated = true;});
-    sequencer.track(name + ": Y", &filter_y_f, [&]() {is_pos_updated = true;});
+    sequencer.track(name + ": X", &newState.pos.x);
+    sequencer.track(name + ": Y", &newState.pos.y);
 }
 
 bool Conv::update() {
     bool result = false;
-    if(is_pos_updated) {
-        if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
-            filter_x = (int)filter_x_f;
-            filter_y = (int)filter_y_f;
+    if(newState.pos != state.pos) {
+        if ((int)newState.pos.x != filter_x || (int)newState.pos.y != filter_y) {
+            filter_x = (int)newState.pos.x;
+            filter_y = (int)newState.pos.y;
 
-            // std::cout << filter_x << ' ' << filter_y << std::endl;
+            std::cout << "Conv update: " << filter_x << ' ' << filter_y << std::endl;
 
             filterProps.src = input.getRange(filter_x, filter_x + 
                 active_filter->width - 1, filter_y, filter_y + active_filter->height - 1);
@@ -177,13 +183,34 @@ bool Conv::update() {
             active_filter->init(filterProps, TIME_OFFSET);
             renderer.resetFrame();
         }
-        is_pos_updated = false;
+        state.pos = newState.pos;
         result = true;
     }
-    if (should_be_visible != is_visible) {
-        is_visible = should_be_visible;
-        if (is_visible) active_filter->show_layer(-1);
-        else active_filter->hide_layer(-1);
+    if (newState.is_visible != state.is_visible) {
+        // is_visible = should_be_visible;
+        if (newState.is_visible) {
+            std::cout << "Showing layer " << name << std::endl;
+            active_filter->show_layer(-1);
+        }
+        else {
+            std::cout << "Hiding layer " << name << std::endl;
+            active_filter->hide_layer(-1);
+        }
+
+        state.is_visible = newState.is_visible;
+        result = true;
+    }
+    if (newState.inputsVisible != state.inputsVisible) {
+        for (int i = 0; i < newState.inputsVisible.size(); i++) {
+            if (newState.inputsVisible[i]) {
+                input.show_layer(i);
+                active_filter->show_layer(i);
+            } else {
+                input.hide_layer(i);
+                active_filter->hide_layer(i);
+            }
+        }
+        state.inputsVisible = newState.inputsVisible;
         result = true;
     }
 
