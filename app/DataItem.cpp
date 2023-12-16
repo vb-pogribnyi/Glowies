@@ -746,21 +746,3 @@ void Data::show_layer(int layer) {
         if (i.layer == layer) i.show();
     }
 }
-
-void Data::drawGui(int panelIdx) {
-    bool need_update = false;
-    for (int i = 0; i < layersVisibility.size(); i++) {
-        bool a = layersVisibility[i] > 0;
-
-        if (ImGui::Checkbox((std::string("Layer ") + std::to_string(i) + "##" + std::to_string(panelIdx)).c_str(), &a)) {
-            layersVisibility[i] = a ? 1 : 0;
-            need_update = true;
-        }
-    }
-    if (need_update) {
-        show();
-        for (int i = 0; i < layersVisibility.size(); i++) {
-            if (layersVisibility[i] == 0) hide_layer(i);
-        }
-    }
-}

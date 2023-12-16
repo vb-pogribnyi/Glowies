@@ -36,7 +36,7 @@ public:
     const float max_time = 1;
     const float min_time = 0;
     int filter_x = 0, filter_y = 0;
-    float time;
+    // float time;
     Data& input;
     Data& output;
     LayerState state;
@@ -89,7 +89,8 @@ public:
     std::vector<float> out_scales;
 
     Transition(std::string name, Renderer &renderer, Data &input, Data &output);
-    virtual void drawGui() override;                                          
+    virtual void drawGui() override;
+    virtual bool update() override;
     virtual void setupSequencer(VRaF::Sequencer &sequencer) override;  
     virtual void init();         
     virtual int getWidth();

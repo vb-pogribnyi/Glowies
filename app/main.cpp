@@ -279,6 +279,7 @@ int main(int argc, char** argv)
       for (Layer* layer : layers) {
         if (layer->update()) {
           bool is_pre = true;
+          std::cout << "Applying " << layer->name << " update" << std::endl;
           for (Layer* layer_other : layers) {
             if (layer_other == layer) {
               is_pre = false;
@@ -304,32 +305,12 @@ int main(int argc, char** argv)
         //   renderer.resetFrame();
         // }
 
-
-        if(ImGui::BeginTabBar("Content"))
-        {
-          if(ImGui::BeginTabItem("Data"))
-          {
-            int idx = 0;
-            for (Data &data : datas) {
-              if (ImGui::CollapsingHeader(std::to_string(idx++).c_str())) {
-                data.drawGui(idx);
-              }
-            }
-            ImGui::EndTabItem();
+        for (Layer* layer : layers) {
+          if (ImGui::CollapsingHeader(layer->name.c_str())) {
+            layer->drawGui();
           }
-
-          if(ImGui::BeginTabItem("Layers"))
-          {
-            for (Layer* layer : layers) {
-              if (ImGui::CollapsingHeader(layer->name.c_str())) {
-                layer->drawGui();
-              }
-            }
-            ImGui::EndTabItem();
-          }
-
-          ImGui::EndTabBar();
         }
+
         // if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
         //       ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
         //   filter_x_f = filter_x;

@@ -37,13 +37,13 @@ bool Layer::update() {
 
 void Layer::toMax() {
     // std::cout << "Calling " << name << " toMax" << std::endl;
-    time = min_time;
+    newState.time = getMaxTime();
     update();
 }
 
 void Layer::toMin() {
     // std::cout << "Calling " << name << " toMin" << std::endl;
-    time = max_time;
+    newState.time = getMinTime();
     update();
 }
 
@@ -68,7 +68,7 @@ int Layer::getDepth() {
 }
 
 void Conv::_Conv() {
-    time = min_time;
+    newState.time = min_time;
     newState.pos.x = filter_x;
     newState.pos.y = filter_y;
     // for (int i = 0; i < input.depth; i++) {
@@ -103,14 +103,12 @@ void Conv::drawGui() {
                 filter_y * stride, filter_y * stride + active_filter->height - 1);
         filterProps.dst = output.getRange(filter_x, filter_x, filter_y, filter_y)[filter_idx];
         active_filter->init(filterProps, TIME_OFFSET);
-        time = min_time;
-        active_filter->setStage(time);
-        renderer.resetFrame();
+        newState.time = min_time;
     };
     if (ImGui::SliderInt((std::string("Filter index##") + name).c_str(), &filter_idx, 0, output.depth - 1)) {
         active_filter->hide_layer(-1);
         active_filter = filters[filter_idx];
-        active_filter->show_layer(-1);
+        if (state.is_visible) active_filter->show_layer(-1);
         filter_pos();
     }
     if (ImGui::SliderInt((std::string("Filter X##") + name).c_str(), &filter_x, 0, (input.width - active_filter->width) / stride)) {
@@ -119,9 +117,8 @@ void Conv::drawGui() {
     if (ImGui::SliderInt((std::string("Filter Y##") + name).c_str(), &filter_y, 0, (input.height - active_filter->height) / stride)) {
         filter_pos();
     }
-    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &time, min_time, max_time)) {
-        active_filter->setStage(time);
-        renderer.resetFrame();
+    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &newState.time, min_time, max_time)) {
+        //
     }
     ImGui::Checkbox((std::string("Visible##") + name).c_str(), &newState.is_visible);
     ImGui::Text("Input layers");
@@ -154,14 +151,11 @@ void Conv::init() {
         filter->hide_layer(-1);
         i++;
     }
-    filters[filter_idx]->show_layer(-1);
+    if (state.is_visible) filters[filter_idx]->show_layer(-1);
 }
 
 void Conv::setupSequencer(VRaF::Sequencer &sequencer) {
-    sequencer.track(name + ": Time", &time, [&]() {
-        active_filter->setStage(time);
-        renderer.resetFrame();
-    });
+    sequencer.track(name + ": Time", &newState.time);
 
     sequencer.track(name + ": X", &newState.pos.x);
     sequencer.track(name + ": Y", &newState.pos.y);
@@ -204,13 +198,19 @@ bool Conv::update() {
         for (int i = 0; i < newState.inputsVisible.size(); i++) {
             if (newState.inputsVisible[i]) {
                 input.show_layer(i);
-                active_filter->show_layer(i);
+                if (state.is_visible) active_filter->show_layer(i);
             } else {
                 input.hide_layer(i);
-                active_filter->hide_layer(i);
+                if (state.is_visible) active_filter->hide_layer(i);
             }
         }
         state.inputsVisible = newState.inputsVisible;
+        result = true;
+    }
+    if (newState.time != state.time) {
+        state.time = newState.time;
+        active_filter->setStage(state.time);
+        renderer.resetFrame();
         result = true;
     }
 
@@ -266,23 +266,12 @@ Transition::Transition(std::string name, Renderer &renderer, Data &input, Data &
         in_scales.push_back(input.items[i].props.scale);
         out_scales.push_back(output.items[i].props.scale);
     }
-    time = 0;
+    newState.time = 0;
 }
 
 void Transition::drawGui() {
-    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &time, min_time, max_time)) {
-        if (time == max_time) {
-            output.show();
-            input.hide();
-        } else {
-            output.hide();
-            input.show();
-            float alpha = (time - min_time) / max_time;
-            for (int i = 0; i < input.items.size(); i++) {
-                input.items[i].setScale(alpha * out_scales[i] + (1 - alpha) * in_scales[i]);
-            }
-        }
-        renderer.resetFrame();
+    if (ImGui::SliderFloat((std::string("Time##") + name).c_str(), &newState.time, min_time, max_time)) {
+        //
     }
 }
 
@@ -291,20 +280,28 @@ void Transition::init() {
 }
 
 void Transition::setupSequencer(VRaF::Sequencer &sequencer) {
-    sequencer.track(name + ": Time", &time, [&]() {
-        if (time == max_time) {
+    sequencer.track(name + ": Time", &newState.time);
+}
+
+bool Transition::update() {
+    bool result = false;
+    if (newState.time != state.time) {
+        state.time = newState.time;
+        if (newState.time == max_time) {
             output.show();
             input.hide();
         } else {
             output.hide();
             input.show();
-            float alpha = (time - min_time) / max_time;
+            float alpha = (newState.time - min_time) / max_time;
             for (int i = 0; i < input.items.size(); i++) {
                 input.items[i].setScale(alpha * out_scales[i] + (1 - alpha) * in_scales[i]);
             }
         }
         renderer.resetFrame();
-    });
+        result = true;
+    }
+    return result;
 }
 
 int Transition::getWidth() {
