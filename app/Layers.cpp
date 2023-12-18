@@ -170,8 +170,8 @@ bool Conv::update() {
 
             std::cout << "Conv update: " << filter_x << ' ' << filter_y << std::endl;
 
-            filterProps.src = input.getRange(filter_x, filter_x + 
-                active_filter->width - 1, filter_y, filter_y + active_filter->height - 1);
+            filterProps.src = input.getRange(filter_x * stride, filter_x * stride + 
+                active_filter->width - 1, filter_y * stride, filter_y * stride + active_filter->height - 1);
 
             filterProps.dst = output.getRange(filter_x, filter_x, filter_y, filter_y)[0];
             active_filter->init(filterProps, TIME_OFFSET);
@@ -214,6 +214,7 @@ bool Conv::update() {
         result = true;
     }
 
+    if (newState != state) throw std::runtime_error("Not all updates were handled");
     return result;
 }
 
@@ -301,6 +302,11 @@ bool Transition::update() {
         renderer.resetFrame();
         result = true;
     }
+    state.inputsVisible = newState.inputsVisible;
+    state.is_visible = newState.is_visible;
+    state.pos = newState.pos;
+
+    if (newState != state) throw std::runtime_error("Not all updates were handled");
     return result;
 }
 

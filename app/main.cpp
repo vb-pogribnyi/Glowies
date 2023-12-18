@@ -277,7 +277,7 @@ int main(int argc, char** argv)
       //   pending_update = 0;
       // }
       for (Layer* layer : layers) {
-        if (layer->update()) {
+        if (layer->state != layer->newState) {
           bool is_pre = true;
           std::cout << "Applying " << layer->name << " update" << std::endl;
           for (Layer* layer_other : layers) {
@@ -288,6 +288,7 @@ int main(int argc, char** argv)
             if (is_pre) layer_other->toMax();
             else layer_other->toMin();
           }
+          layer->update();
         }
       }
 
