@@ -35,15 +35,18 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     }
     float scale_pos = 0;
     float scale_neg = 0;
-    if (props.scale > 0) scale_pos = props.scale;
-    else scale_neg = -props.scale;
+    // Effective scale. To avoid too large data items
+    float eff_scale = std::min(MAX_SIZE, std::abs(props.scale)) * (props.scale / std::abs(props.scale));
+    if (eff_scale > 0) scale_pos = eff_scale;
+    else scale_neg = -eff_scale;
     mat4 transform_pos;
     mat4 transform_neg;
     float height = getHeight();
 
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), height, std::abs(props.scale)));
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(eff_scale), height, std::abs(eff_scale)));
     transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
          nvmath::rotation_mat4_x(props.rotation.x) * 
          nvmath::rotation_mat4_z(props.rotation.y) * 
@@ -171,6 +174,7 @@ Particle::~Particle()
 
 void Particle::hide()
 {
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     renderer.m_instances[idxs.particle_signed].transform = nvmath::translation_mat4(nvmath::vec3f(0.0f)) * 
          nvmath::scale_mat4(nvmath::vec3f(0.0f));
     renderer.m_tlas[idxs.particle_signed].transform = nvvk::toTransformMatrixKHR(
@@ -194,6 +198,7 @@ void Particle::moveTo(vec3 position, float filler_transition, vec3 filler_scale,
     if (nvmath::length(position) > MAX_POSITION) {
         throw std::runtime_error("Position too large");
     }
+    if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     if (filler_transition < 0) filler_transition = 0;
     if (filler_transition > 1) filler_transition = 1;
     if (show_transition < 0) show_transition = 0;
@@ -277,15 +282,17 @@ void DISet::setScale(float scale, float scale_ref) {
     transform = components[0].transform;
 }
 
-void DISet::hide() {
+void DISet::hide(bool isPerm) {
     is_hidden = true;
+    if (isPerm) is_hidden_perm = true;
     for (DataItem &c : components) {
         c.hide();
     }
 }
 
-void DISet::show() {
+void DISet::show(bool isPerm) {
     is_hidden = false;
+    if (isPerm) is_hidden_perm = false;
     for (DataItem &c : components) {
         c.show();
     }
@@ -303,31 +310,28 @@ void DISet::hideStatic() {
     }
 }
 
-Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : renderer(renderer) {
-    npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
-    bias = bias_np.data[outLayer];
-
-    npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
-    width = weights_np.shape[2];
-    height = weights_np.shape[3];
+void Filter::_Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer) {
+    this->bias = bias;
+    width = weights_shape[2];
+    height = weights_shape[3];
     props.dst = 0;
 
     int idx = 0;
-    int itemsPerOutLayer = width * height * weights_np.shape[1];
+    int itemsPerOutLayer = width * height * weights_shape[1];
     int itemsPerInLayer = width * height;
     DIProperties props;
-    for (double value : weights_np.data) {
+    for (double value : weights_data) {
         int layer = idx / itemsPerOutLayer;
         // std::cout << idx << '\t' << layer << '\t' << value << std::endl;
-        if (layer % weights_np.shape[0] == outLayer) {
+        if (layer % weights_shape[0] == outLayer) {
             int layer_idx = idx % itemsPerOutLayer;
             weights.push_back(value);
             weights_scales.push_back({value, 1});
-            weights_positions.push_back(vec3(0, 0, 0));
+            weights_positions.push_back(vec3(-1));
             weights_scales_old.push_back({value, 1});
-            weights_positions_old.push_back(vec3(0, 0, 0));
-            float pos_x = layer_idx / weights_np.shape[3];
-            float pos_y = layer_idx % weights_np.shape[3];
+            weights_positions_old.push_back(vec3(-1));
+            float pos_x = layer_idx / weights_shape[3];
+            float pos_y = layer_idx % weights_shape[3];
             pos_x *= SPACING;
             pos_y *= SPACING;
 
@@ -346,6 +350,19 @@ Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : rend
         .scale = (float)1.0
     };
     dst = new DataItem(renderer, props, renderer.indices);
+}
+
+Filter::Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer) 
+        : renderer(renderer), bias(bias) {
+    _Filter(renderer, weights_shape, weights_data, bias, outLayer);
+}
+
+Filter::Filter(Renderer& renderer, std::string weightsPath, int outLayer) : renderer(renderer) {
+    npy::npy_data bias_np = npy::read_npy<double>(weightsPath + "_bias.npy");
+
+    npy::npy_data weights_np = npy::read_npy<double>(weightsPath + "_weights.npy");
+    std::vector<unsigned long> weights_shape = {weights_np.shape[0], weights_np.shape[1], weights_np.shape[2], weights_np.shape[3]};
+    _Filter(renderer, weights_shape, weights_np.data, bias_np.data[outLayer], outLayer);
 }
 
 Filter::~Filter()
@@ -398,7 +415,7 @@ void Filter::init(FilterProps props, float time_offset) {
         // std::cout << i << '\t' << props.src[i]->props.scale << '\t' << weights[i] << '\t' << applied_value << '\t' << result_value << std::endl;
 
         weights_scales_old[i] = weights_scales[i];
-        weights_positions_old[i] = weights_positions[i];
+        weights_positions_old[i] = weights_positions[i].y >= 0 ? weights_positions[i] : target_pos;
         weights_scales[i] = {applied_value, target_scale};
         weights_positions[i] = target_pos;
 
@@ -557,9 +574,9 @@ void Filter::setStage(float value) {
     if (value > value_scale && value <= value_merge) {
         if (curves.size() == 0) init_prt_curves();
 
-        value = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
+        float value_inner = (value - value_scale) * merge_time - TIME_OFFSET / 2; // This value should start at negative
         for(int i = 0; i < particles.size(); i++) {
-            float curve_value = value + curves[i].time_offset;
+            float curve_value = value_inner + curves[i].time_offset;
             float stage = (curve_value - ANIMATION_DURATION) / TRANSFORM_DURATION;
             // Only width should be scaled. DI height always remains 1.0
             vec3 scale(prt_w * dst->props.scale, prt_h * dst->props.scale, prt_w * dst->props.scale);
@@ -576,12 +593,20 @@ void Filter::setStage(float value) {
 
     // Showing static part when the construction is complete; showing bias
     if (value > value_merge && value <= value_bias) {
-        value = (value - value_merge) * bias_time;
-        float weighted_scale = value * (result_value + bias) + (1 - value) * result_value;
+        float value_inner = (value - value_merge) * bias_time;
+        float weighted_scale = value_inner * (result_value + bias) + (1 - value_inner) * result_value;
         dst->setScale(weighted_scale);
         dst->showStatic();
     } else {
         dst->hideStatic();
+    }
+
+    if (value >= value_bias) {
+        dst->hide();
+        props.dst->show();
+    } else {
+        dst->show();
+        props.dst->hide();
     }
 }
 
@@ -631,12 +656,22 @@ vec3 Filter::get_di_movement_pos(const BCurve &start, const BCurve &mid, const B
 }
 
 void Filter::hide_layer(int layer) {
+    std::cout << "Hiding layer " << layer << std::endl;
     for (auto &w : weights_di) {
-        if (w.layer == layer) w.hide();
+        if (layer < 0) w.hide();
+        else if (w.layer == layer) w.hide(true);
     }
 }
 
-Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
+void Filter::show_layer(int layer) {
+    std::cout << "Showing layer " << layer << std::endl;
+    for (auto &w : weights_di) {
+        if (layer < 0 && !w.is_hidden_perm) w.show();
+        else if (w.layer == layer) w.show(true);
+    }
+}
+
+Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer, float spacing_x, float spacing_y, float spacing_z) {
   npy::npy_data d = npy::read_npy<double>(path);
 
   depth = layer > 0 ? 1 : d.shape[0];
@@ -649,9 +684,14 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
     if (layer < 0 || dataLayer == layer) {
         float pos_x = (idx - dataLayer * valsPerLayer) / d.shape[2];
         float pos_y = (idx - dataLayer * valsPerLayer) % d.shape[2];
-        float pos_z = dataLayer * SPACING;
-        pos_x *= SPACING;
-        pos_y *= SPACING;
+        float pos_z = dataLayer * SPACING * spacing_z;
+        // std::cout << pos_x << '\t' << pos_y << '\t';
+        pos_x -= width / 2 - 0.5;
+        pos_y -= height / 2 - 0.5;
+        // std::cout << pos_x << '\t' << pos_y << '\t';
+        pos_x *= SPACING * spacing_x;
+        pos_y *= SPACING * spacing_y;
+        // std::cout << pos_x << '\t' << pos_y << std::endl;
 
         DIProperties props = {
             .is_has_reference = false,
@@ -666,6 +706,7 @@ Data::Data(Renderer& renderer, const std::string path, vec3 offset, int layer) {
     }
     idx++;
   }
+  for (int i = 0; i < depth; i++) layersVisibility.push_back(1);
 }
 
 std::vector<DataItem*> Data::getRange(int x1, int x2, int y1, int y2) {
@@ -703,5 +744,11 @@ void Data::show() {
 void Data::hide_layer(int layer) {
     for (DataItem &i : items) {
         if (i.layer == layer) i.hide();
+    }
+}
+
+void Data::show_layer(int layer) {
+    for (DataItem &i : items) {
+        if (i.layer == layer) i.show();
     }
 }

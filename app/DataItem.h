@@ -4,12 +4,14 @@
 #include <vector>
 #include "Renderer.h"
 #include "npy.hpp"
+#include "imgui.h"
 
 // Distance constraints
-#define SPACING 1.2
+#define SPACING 1.8
+#define MAX_SIZE 1.5f
 #define MERGE_HEIGHT 3.0
 #define LAYER_HEIGHT 5.0
-#define MAX_POSITION 100
+#define MAX_POSITION 1000
 
 // Time constraints
 #define CONSTRUCTION_DELAY 1.5
@@ -105,13 +107,14 @@ public:
     mat4 transform;
     int layer;
     bool is_hidden = false;
+    bool is_hidden_perm = false;
 
     DISet(Renderer &renderer, vec3 pos);
     void moveTo(vec3 position, bool is_hidden=false);
     std::vector<vec3> split(float n, float& w, float& h);
     void setScale(float scale, float scale_ref = 0.0f);
-    void hide();
-    void show();
+    void hide(bool isPerm=false);
+    void show(bool isPerm=false);
     void showStatic();
     void hideStatic();
 };
@@ -140,12 +143,15 @@ public:
     float time_offset = 0.0;
 
     Filter(Renderer& renderer, std::string weightsPath, int outLayer = 0);
+    Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer = 0);
+    void _Filter(Renderer& renderer, std::vector<unsigned long> weights_shape, std::vector<double> weights_data, float bias, int outLayer = 0);
     ~Filter();
     void init(FilterProps props, float time_offset);
     void init_di_curves();
     void init_prt_curves();
     vec3 get_di_movement_pos(const BCurve &start, const BCurve &mid, const BCurve &end, float value);
     void hide_layer(int layer);
+    void show_layer(int layer);
 
     // The transition stage would vary between 0 and 5
     void setStage(float value);
@@ -155,11 +161,13 @@ class Data {
 public:
     int width, height, depth;
     std::vector<DataItem> items;
-    Data(Renderer& renderer, const std::string path, vec3 offset, int layer = -1);
+    std::vector<unsigned int> layersVisibility;
+    Data(Renderer& renderer, const std::string path, vec3 offset, int layer = -1, float spacing_x = 1, float spacing_y = 1, float spacing_z = 1);
     std::vector<DataItem*> getRange(int x1, int x2, int y1, int y2);
     void hide();
     void show();
     void hide_layer(int layer);
+    void show_layer(int layer);
 };
 
 #endif

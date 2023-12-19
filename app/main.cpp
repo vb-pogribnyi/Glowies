@@ -10,6 +10,7 @@
 
 #include "Renderer.h"
 #include "DataItem.h"
+#include "Layers.h"
 #include "imgui/imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
@@ -37,6 +38,8 @@ bool is_recording = false;
 
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
+std::vector<Layer*> layers;
+std::vector<Data> datas;
 
 
 // GLFW Callback functions
@@ -48,7 +51,7 @@ static void onErrorCallback(int error, const char* description)
 // Extra UI
 void renderUI(Renderer& renderer)
 {
-  ImGuiH::CameraWidget();
+  // ImGuiH::CameraWidget();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -151,9 +154,31 @@ int main(int argc, char** argv)
                     nvmath::translation_mat4(nvmath::vec3f(0, 10.0, 0)) * 
                     nvmath::scale_mat4(nvmath::vec3f(0.18f, 0.02f, 0.02f)));
 
-  Data data(renderer, "data.npy", vec3(0, 0, 0));
-  Filter* f = new Filter(renderer, "filter", 0);
-  Data data_out(renderer, "output.npy", vec3(SPACING * (float)(f->width - 1) / 2, LAYER_HEIGHT, SPACING * (float)(f->height - 1) / 2), 0);
+  int stride_xy = 1;
+  int stride_z = 1;
+  datas.push_back(Data(renderer, "data/input.npy", vec3(0, 0, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_conv1.npy", vec3(0, 2, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_pool1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
+  datas.push_back(Data(renderer, "data/out_acti1.npy", vec3(0, 35, 0), -1, stride_xy * 3, stride_xy * 3, stride_z));
+  datas.push_back(Data(renderer, "data/out_conv2.npy", vec3(0, 70, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_pool2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_acti2.npy", vec3(0, 80, 0), -1, stride_xy, stride_xy, stride_z));
+  datas.push_back(Data(renderer, "data/out_dense1.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense1a.npy", vec3(0, 93, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense2.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
+  datas.push_back(Data(renderer, "data/out_dense2a.npy", vec3(0, 96, 0), -1, stride_xy, stride_xy, 1));
+  
+  layers.push_back(new Conv("Conv 1", renderer, datas[0], datas[1], "data/filter_1"));
+  layers.push_back(new AvgPool("Pool 1", renderer, datas[1], datas[2], 3));
+  layers.push_back(new Transition("Activation 1", renderer, datas[2], datas[3]));
+  layers.push_back(new Conv("Conv 2", renderer, datas[3], datas[4], "data/filter_2"));
+  layers.push_back(new AvgPool("Pool 2", renderer, datas[4], datas[5], 2));
+  layers.push_back(new Transition("Activation 2", renderer, datas[5], datas[6]));
+  layers.push_back(new Conv("Dense 1", renderer, datas[6], datas[7], "data/dense_1"));
+  layers.push_back(new Transition("Activation d1", renderer, datas[7], datas[8]));
+  layers.push_back(new Conv("Dense 2", renderer, datas[8], datas[9], "data/dense_2"));
+  layers.push_back(new Transition("Activation d2", renderer, datas[9], datas[10]));
+  
 
   auto start = std::chrono::system_clock::now();
 
@@ -180,69 +205,42 @@ int main(int argc, char** argv)
 
   renderer.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
-  const float max_time = 5;
-  const float min_time = 0;
-  float time = min_time;
-  int filter_x = 0, filter_y = 0;
-  float filter_x_f = filter_x, filter_y_f = filter_y;
 
   VRaF::Sequencer sequencer;
-  sequencer.track("Animation time", &time, [&]() {
-      f->setStage(time);
-      renderer.resetFrame();
-  });
-
-  FilterProps filterProps = {
-    .prts_per_size = PRTS_PER_SIZE,
-    .src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1),
-    .dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0]
-  };
-  data_out.hide();
 
   bool is_hide_output = false;
   sequencer.onFrameUpdated([&](int frame) {if (frame == 1) {is_hide_output = true;}});
-  data.show();
-  f->init(filterProps, TIME_OFFSET); // This function needs TLAS to be built
-  f->hide_layer(4);
-  f->hide_layer(3);
-  // f->hide_layer(2);
-  // f->hide_layer(1);
-  // f->hide_layer(0);
-  data.hide_layer(4);
-  data.hide_layer(3);
-
-  bool is_pos_updated = false;
-  auto updateConvLocation = [&]() {
-    if ((int)filter_x_f != filter_x || (int)filter_y_f != filter_y) {
-      filter_x = (int)filter_x_f;
-      filter_y = (int)filter_y_f;
-
-      // std::cout << filter_x << ' ' << filter_y << std::endl;
-
-      filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
-
-      filterProps.dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0];
-      f->init(filterProps, TIME_OFFSET);
-      renderer.resetFrame();
-    }
-  };
+  for (Data &d : datas) d.show();
+  for (Layer *l : layers) l->init();
+  layers[0]->output.hide();
   auto updateCameraPos = [&]() {
     renderer.resetFrame();
   };
-  sequencer.track("X", &filter_x_f, [&]() {is_pos_updated = true;});
-  sequencer.track("Y", &filter_y_f, [&]() {is_pos_updated = true;});
+  for (Layer* l : layers) l->setupSequencer(sequencer);
   sequencer.track("Camera pos", &renderer.camera.pos, updateCameraPos);
   sequencer.track("Camera tgt", &renderer.camera.tgt, updateCameraPos);
-  sequencer.loadFile("sequences.json");
+  sequencer.loadFile("data/sequences.json");
   // Main loop
-  float moveSpeed = 0.8;
+  float moveSpeed = 15.8;
   float lastTime = (float)glfwGetTime();
 
   std::function<void(bool, bool, int)> showFrame = [&](bool showGUI, bool is_raytrace, int img_id) {
-      if(is_pos_updated) {
-        updateConvLocation();
-        is_pos_updated = false;
+      for (Layer* layer : layers) {
+        if (layer->state != layer->newState) {
+          bool is_pre = true;
+          std::cout << "Applying " << layer->name << " update" << std::endl;
+          for (Layer* layer_other : layers) {
+            if (layer_other == layer) {
+              is_pre = false;
+              continue;
+            }
+            if (is_pre) layer_other->toMax();
+            else layer_other->toMin();
+          }
+          layer->update();
+        }
       }
+
       // Start the Dear ImGui frame
       ImGui_ImplGlfw_NewFrame();
       ImGui::NewFrame();
@@ -252,40 +250,39 @@ int main(int argc, char** argv)
         ImGuiH::Panel::Begin();
         ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
         if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer)) renderer.resetFrame();
-        if (ImGui::SliderFloat("Time", &time, min_time, max_time)) {
-          f->setStage(time);
-          renderer.resetFrame();
-        }
-        if (ImGui::SliderInt("Filter X", &filter_x, 0, data.width - f->width) ||
-              ImGui::SliderInt("Filter Y", &filter_y, 0, data.height - f->height)) {
-          filter_x_f = filter_x;
-          filter_y_f = filter_y;
-          filterProps.src = data.getRange(filter_x, filter_x + f->width - 1, filter_y, filter_y + f->height - 1);
 
-          filterProps.dst = data_out.getRange(filter_x, filter_x, filter_y, filter_y)[0];
-          f->init(filterProps, TIME_OFFSET);
-          time = min_time;
-          f->setStage(time);
-          renderer.resetFrame();
+        for (Layer* layer : layers) {
+          if (ImGui::CollapsingHeader(layer->name.c_str())) {
+            layer->drawGui();
+          }
         }
+
         if (ImGui::Button("Save image")) {
           renderer.saveImage("result.png");
         }
         if (!is_recording && ImGui::Button("Start recording")) is_recording = true;
         if (ImGui::Button("Save sequence")) sequencer.saveFile("sequences.json");
         if (ImGui::Button("Generate sequence")) {
+
           sequencer.clear();
           int step_global = 0;
-          int nx = data.width - f->width + 1, ny = data.height - f->height + 1;
-          int nsteps = nx * ny * FRAMES_PER_CONV_STEP + 1;
-          for (int conv_x = 0; conv_x < nx; conv_x++) {
-            for (int conv_y = 0; conv_y < ny; conv_y++) {
-              for (int step = 0; step <= FRAMES_PER_CONV_STEP; step++) {
-                time = (float)step / FRAMES_PER_CONV_STEP * (max_time - min_time) + min_time;
-                // std::cout << conv_x << ' ' << conv_y << ' ' << time << std::endl;
-                sequencer.addKeyframe("X", (float)step_global / nsteps, nsteps, conv_x);
-                sequencer.addKeyframe("Y", (float)step_global / nsteps, nsteps, conv_y);
-                sequencer.addKeyframe("Animation time", (float)step_global / nsteps, nsteps, time);
+          for (Layer* layer : layers) {
+            int step_start = step_global;
+            std::cout << layer->name << std::endl;
+            int nsteps_layer = layer->getWidth() * layer->getHeight() * layer->getDepth();
+            for (int step = 0; step < nsteps_layer; step++) {
+              int x = (step / layer->getHeight()) % layer->getWidth();
+              int y = step % layer->getHeight();
+              int z = layer->getHeight() / layer->getWidth();
+ 
+              // std::cout << layer->name << ": " << x << ' ' << y << ' ' << z << std::endl;
+              int nsteps = nsteps_layer * (FRAMES_PER_CONV_STEP + 1);
+              for (int frame = 0; frame <= FRAMES_PER_CONV_STEP; frame++) {
+                int step_layer = step * (FRAMES_PER_CONV_STEP + 1) + frame;
+                float time = (float)frame / FRAMES_PER_CONV_STEP * (layer->getMaxTime() - layer->getMinTime()) + layer->getMinTime();
+                sequencer.addKeyframe((layer->name + std::string(": X")).c_str(), (float)step_layer / nsteps, nsteps, x, step_start);
+                sequencer.addKeyframe((layer->name + std::string(": Y")).c_str(), (float)step_layer / nsteps, nsteps, y, step_start);
+                sequencer.addKeyframe((layer->name + std::string(": Time")).c_str(), (float)step_layer / nsteps, nsteps, time, step_start);
                 step_global++;
               }
             }
@@ -393,7 +390,7 @@ int main(int argc, char** argv)
     float l = moveSpeed * dtime;
     renderer.camera.move(l * renderer.camera.move_fw, l * renderer.camera.move_rt, l * renderer.camera.move_up);
     if (is_hide_output) {
-      data_out.hide();
+      // data_out.hide();
       is_hide_output = false;
     }
 
@@ -403,7 +400,7 @@ int main(int argc, char** argv)
   // Cleanup
   vkDeviceWaitIdle(renderer.getDevice());
 
-  delete f;
+  // delete f;
 
   renderer.destroyResources();
   renderer.destroy();
