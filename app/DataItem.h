@@ -7,7 +7,8 @@
 #include "imgui.h"
 
 // Distance constraints
-#define SPACING 1.2
+#define SPACING 1.8
+#define MAX_SIZE 1.5f
 #define MERGE_HEIGHT 3.0
 #define LAYER_HEIGHT 5.0
 #define MAX_POSITION 1000

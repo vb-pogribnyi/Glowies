@@ -36,14 +36,16 @@ bool Layer::update() {
 }
 
 void Layer::toMax() {
-    // std::cout << "Calling " << name << " toMax" << std::endl;
+    std::cout << "Calling " << name << " toMax" << std::endl;
     newState.time = getMaxTime();
+    output.show();
     update();
 }
 
 void Layer::toMin() {
-    // std::cout << "Calling " << name << " toMin" << std::endl;
+    std::cout << "Calling " << name << " toMin" << std::endl;
     newState.time = getMinTime();
+    output.hide();
     update();
 }
 
@@ -133,7 +135,10 @@ void Conv::drawGui() {
             std::cout << std::endl;
         }
     }
-    ImGui::Text("Output layers");
+    if (ImGui::Button("Reset")) {
+        output.hide();
+    }
+    // ImGui::Text("Output layers");
     // for (int i = 0; i < output.depth; i++) {
     //     out_lrs_visible |= 1 << i;
     // }

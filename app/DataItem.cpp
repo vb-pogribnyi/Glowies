@@ -35,8 +35,10 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     }
     float scale_pos = 0;
     float scale_neg = 0;
-    if (props.scale > 0) scale_pos = props.scale;
-    else scale_neg = -props.scale;
+    // Effective scale. To avoid too large data items
+    float eff_scale = std::min(MAX_SIZE, std::abs(props.scale)) * (props.scale / std::abs(props.scale));
+    if (eff_scale > 0) scale_pos = eff_scale;
+    else scale_neg = -eff_scale;
     mat4 transform_pos;
     mat4 transform_neg;
     float height = getHeight();
@@ -44,7 +46,7 @@ void DataItem::moveTo(vec3 position, bool is_hidden) {
     if (renderer.m_tlas.size() == 0) std::runtime_error("TLAS haven't been built yet");
     props.position = position;
     transform = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
-         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(props.scale), height, std::abs(props.scale)));
+         nvmath::scale_mat4(is_hidden ? vec3(0.0f) : nvmath::vec3f(std::abs(eff_scale), height, std::abs(eff_scale)));
     transform_pos = nvmath::translation_mat4(nvmath::vec3f(position.x, position.y + 0.5, position.z)) * 
          nvmath::rotation_mat4_x(props.rotation.x) * 
          nvmath::rotation_mat4_z(props.rotation.y) * 
